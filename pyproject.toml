@@ -22,7 +22,6 @@ dependencies = [
 dev = [
   "ruff>=0.6.9",
   "mypy>=1.11.2",
-  "types-python-dotenv>=1.0.4.20240902",
   "pytest>=8.3.3",
 ]
 
