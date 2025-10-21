@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .config import Settings
 from .db import get_session, init_db
-from .models import User
+from .models import SurveyAnswer, SurveyRun, User
 from .vtuber_client import VtuberClient
 
 
@@ -59,8 +59,13 @@ def create_app() -> FastAPI:
                 f"<td>{name}</td>"
                 f"<td>{reg_badge}</td>"
                 f"<td>"
+                f"<a href='/admin/users/{u.id}'>View</a>"
+                f" &nbsp;"
                 f"<form method='post' action='/admin/users/{u.id}/toggle-registered'>"
                 f"<button type='submit'>Toggle Registered</button>"
+                f"</form>"
+                f"<form method='post' action='/admin/users/{u.id}/delete' onsubmit=\"return confirm('Delete user #{u.id}?');\">"
+                f"<button type='submit' style='color:#b00;'>Delete</button>"
                 f"</form>"
                 f"</td>"
                 f"</tr>"
@@ -114,6 +119,75 @@ def create_app() -> FastAPI:
             session.add(user)
             session.commit()
         return RedirectResponse(url="/admin/users", status_code=303)
+
+    @app.post("/admin/users/{user_id}/delete")
+    def delete_user(user_id: int, _: Auth):  # type: ignore[no-untyped-def]
+        with get_session() as session:
+            user = session.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            # Cascade delete survey data
+            runs = session.query(SurveyRun).filter(SurveyRun.user_id == user_id).all()
+            for r in runs:
+                session.query(SurveyAnswer).filter(SurveyAnswer.run_id == r.id).delete()
+                session.delete(r)
+            session.delete(user)
+            session.commit()
+        return RedirectResponse(url="/admin/users", status_code=303)
+
+    @app.get("/admin/users/{user_id}", response_class=HTMLResponse)
+    def view_user(user_id: int, _: Auth) -> str:  # type: ignore[no-untyped-def]
+        with get_session() as session:
+            user = session.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            runs = (
+                session.query(SurveyRun)
+                .filter(SurveyRun.user_id == user_id)
+                .order_by(SurveyRun.created_at.desc())
+                .all()
+            )
+            blocks = []
+            for r in runs:
+                answers = (
+                    session.query(SurveyAnswer)
+                    .filter(SurveyAnswer.run_id == r.id)
+                    .order_by(SurveyAnswer.created_at.asc())
+                    .all()
+                )
+                items = "".join(
+                    f"<tr><td>{a.created_at:%Y-%m-%d %H:%M:%S}</td><td>{a.question_id}</td><td>{a.answer_choice or ''}</td><td>{(a.answer_text or '').replace('<','&lt;')}</td></tr>"
+                    for a in answers
+                ) or "<tr><td colspan='4'>—</td></tr>"
+                status = "✅ completed" if r.completed_at else "⏳ in progress"
+                blocks.append(
+                    f"<h3>Run #{r.id} — {r.survey_key} — {status}</h3>"
+                    f"<table><thead><tr><th>Time</th><th>Question</th><th>Choice</th><th>Text</th></tr></thead><tbody>{items}</tbody></table>"
+                )
+
+        name = " ".join(filter(None, [user.first_name, user.last_name])) or (user.username or "-")
+        runs_html = "".join(blocks) or "<p>No survey runs yet.</p>"
+        return f"""
+        <html>
+          <head>
+            <meta charset='utf-8' />
+            <title>User #{user.id}</title>
+            <style>
+              body {{ font-family: system-ui, sans-serif; padding: 20px; }}
+              table {{ border-collapse: collapse; width: 100%; margin-bottom: 16px; }}
+              th, td {{ border: 1px solid #ddd; padding: 6px; }}
+              th {{ background: #f6f6f6; text-align: left; }}
+              .muted {{ color: #666; }}
+            </style>
+          </head>
+          <body>
+            <p><a href='/admin/users'>&larr; Back to Users</a></p>
+            <h1>User #{user.id} — {name}</h1>
+            <p class='muted'>tg_id: {user.tg_id} &middot; registered: {"yes" if user.is_registered else "no"}</p>
+            {runs_html}
+          </body>
+        </html>
+        """
 
     @app.get("/admin/vtuber", response_class=HTMLResponse)
     def vtuber_form(_: Auth) -> str:  # type: ignore[no-untyped-def]

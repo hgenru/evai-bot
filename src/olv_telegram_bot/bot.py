@@ -25,6 +25,8 @@ async def handle_start(message: Message) -> None:
     tg_user = message.from_user
     if not tg_user:
         return
+    if getattr(tg_user, "is_bot", False):
+        return
     _ = get_or_create_user(
         tg_id=tg_user.id,
         username=tg_user.username,
@@ -66,6 +68,8 @@ async def cmd_survey(message: Message) -> None:
 async def start_survey_flow(message: Message, *, survey_key: str, tg_user_override=None) -> None:
     tg_user = tg_user_override or message.from_user
     if not tg_user:
+        return
+    if getattr(tg_user, "is_bot", False):
         return
     user = get_or_create_user(
         tg_id=tg_user.id,
@@ -148,7 +152,7 @@ async def cb_choice_answer(cb: CallbackQuery) -> None:
 @router.message()
 async def on_any_message(message: Message) -> None:
     tg_user = message.from_user
-    if not tg_user or not message.text:
+    if not tg_user or getattr(tg_user, "is_bot", False) or not message.text:
         return
     # Find active run for this user
     from sqlmodel import select
