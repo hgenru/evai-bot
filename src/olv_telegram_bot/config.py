@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     admin_host: str = Field(default="127.0.0.1", alias="ADMIN_HOST")
     admin_port: int = Field(default=8080, alias="ADMIN_PORT")
     admin_token: str = Field(default="", alias="ADMIN_TOKEN")
+    vtuber_api_root: str = Field(default="http://127.0.0.1:7860", alias="VTUBER_API_ROOT")
 
     model_config = SettingsConfigDict(
         env_file=".env",
