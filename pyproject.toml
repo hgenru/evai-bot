@@ -1,0 +1,72 @@
+[project]
+name = "olv-telegram-bot"
+version = "0.1.0"
+description = "Telegram bot for Open-LLM-VTuber party: registration, surveys, scoring"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "OLV", email = "dev@olv.local" }]
+dependencies = [
+  "aiogram>=3.10.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.4.0",
+  "python-dotenv>=1.0.1",
+  "sqlmodel>=0.0.22",
+  "structlog>=24.4.0",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.6.9",
+  "mypy>=1.11.2",
+  "types-python-dotenv>=1.0.4.20240902",
+  "pytest>=8.3.3",
+]
+
+[project.scripts]
+olv-bot = "olv_telegram_bot.main:main"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+src = ["src"]
+target-version = "py311"
+line-length = 100
+respect-gitignore = true
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",     # pycodestyle/pyflakes
+  "I",                 # isort
+  "UP",                # pyupgrade
+  "B",                 # flake8-bugbear
+  "C90",               # mccabe
+  "PL",                # pylint (subset)
+]
+ignore = [
+  "E501",  # длину строки регулируем форматтером
+]
+fix = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+show_error_codes = true
+pretty = true
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
