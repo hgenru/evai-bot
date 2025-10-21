@@ -138,14 +138,20 @@ def create_app() -> FastAPI:
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>VTuber Direct Control</h1>
-            <p><b>API root:</b> {settings.vtuber_api_root}</p>
+            <p><b>Configured API root:</b> {settings.vtuber_api_root}</p>
             <h2>List Sessions</h2>
             <form method='post' action='/admin/vtuber/sessions'>
+              <label>API root (override):
+                <input type='text' name='api_root' placeholder='{settings.vtuber_api_root}' />
+              </label>
               <button type='submit'>Get /v1/sessions</button>
             </form>
 
             <h2>Speak</h2>
             <form method='post' action='/admin/vtuber/speak'>
+              <label>API root (override):
+                <input type='text' name='api_root' placeholder='{settings.vtuber_api_root}' />
+              </label>
               <label>text (required):<br/>
                 <textarea name='text' rows='4' placeholder='Привет! [motion:walk2b] ...'></textarea>
               </label>
@@ -175,15 +181,19 @@ def create_app() -> FastAPI:
         """
 
     @app.post("/admin/vtuber/sessions", response_class=HTMLResponse)
-    async def vtuber_list_sessions(_: Auth) -> str:  # type: ignore[no-untyped-def]
-        settings = Settings()
-        client = VtuberClient(settings.vtuber_api_root)
+    async def vtuber_list_sessions(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
+        form = await request.form()
+        api_root = (str(form.get("api_root") or "").strip()) or Settings().vtuber_api_root
+        client = VtuberClient(api_root)
         try:
             sessions = await client.list_sessions()
             items = "".join(f"<li>{s}</li>" for s in sessions) or "<li>no sessions</li>"
-            body = f"<ul>{items}</ul>"
+            body = f"<p>API root: <code>{api_root}</code></p><ul>{items}</ul>"
         except Exception as e:  # noqa: BLE001
-            body = f"<pre style='color:#b00;'>Error: {e!s}</pre>"
+            body = (
+                f"<p>API root: <code>{api_root}</code></p>"
+                f"<pre style='color:#b00;'>Error: {e!s}</pre>"
+            )
         return f"""
         <html>
           <head>
@@ -201,6 +211,7 @@ def create_app() -> FastAPI:
     @app.post("/admin/vtuber/speak", response_class=HTMLResponse)
     async def vtuber_speak(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
         form = await request.form()
+        api_root = (str(form.get("api_root") or "").strip()) or Settings().vtuber_api_root
         text = str(form.get("text") or "").strip()
         client_uid = str(form.get("client_uid") or "").strip() or None
         display_name = str(form.get("display_name") or "").strip() or None
@@ -227,8 +238,7 @@ def create_app() -> FastAPI:
         if not text:
             result_html = "<pre style='color:#b00;'>Error: text is required</pre>"
         else:
-            settings = Settings()
-            client = VtuberClient(settings.vtuber_api_root)
+            client = VtuberClient(api_root)
             try:
                 resp = await client.speak(
                     text=text,
@@ -241,9 +251,15 @@ def create_app() -> FastAPI:
                 )
                 import json
 
-                result_html = f"<pre>{json.dumps(resp, ensure_ascii=False, indent=2)}</pre>"
+                result_html = (
+                    f"<p>API root: <code>{api_root}</code></p>"
+                    f"<pre>{json.dumps(resp, ensure_ascii=False, indent=2)}</pre>"
+                )
             except Exception as e:  # noqa: BLE001
-                result_html = f"<pre style='color:#b00;'>Error: {e!s}</pre>"
+                result_html = (
+                    f"<p>API root: <code>{api_root}</code></p>"
+                    f"<pre style='color:#b00;'>Error: {e!s}</pre>"
+                )
 
         return f"""
         <html>
