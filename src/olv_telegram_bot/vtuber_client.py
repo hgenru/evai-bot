@@ -53,3 +53,39 @@ class VtuberClient:
             resp.raise_for_status()
             return resp.json()
 
+    async def system_instruction(
+        self,
+        *,
+        text: str,
+        client_uid: Optional[str] = None,
+        mode: str = "append",
+        apply_to_all: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self.base_url}/v1/direct-control/system"
+        payload: Dict[str, Any] = {"text": text, "mode": mode}
+        if client_uid:
+            payload["client_uid"] = client_uid
+        if apply_to_all is not None:
+            payload["apply_to_all"] = apply_to_all
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            return resp.json()
+
+    async def agent_say(
+        self,
+        *,
+        text: str,
+        client_uid: Optional[str] = None,
+        apply_to_all: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self.base_url}/v1/direct-control/agent-say"
+        payload: Dict[str, Any] = {"text": text}
+        if client_uid:
+            payload["client_uid"] = client_uid
+        if apply_to_all is not None:
+            payload["apply_to_all"] = apply_to_all
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            return resp.json()

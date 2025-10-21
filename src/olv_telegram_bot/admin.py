@@ -170,6 +170,41 @@ def create_app() -> FastAPI:
               </label>
               <button type='submit'>POST /api/v1/direct-control/speak</button>
             </form>
+
+            <h2>System Instruction</h2>
+            <form method='post' action='/admin/vtuber/system'>
+              <label>text (required):<br/>
+                <textarea name='text' rows='3' placeholder='Ты доброжелательный ведущий вечеринки.'></textarea>
+              </label>
+              <label>client_uid (optional):
+                <input type='text' name='client_uid' placeholder='target session uid'/>
+              </label>
+              <label>mode:
+                <select name='mode'>
+                  <option value='append' selected>append</option>
+                  <option value='prepend'>prepend</option>
+                  <option value='reset'>reset</option>
+                </select>
+              </label>
+              <label>
+                <input type='checkbox' name='apply_to_all'/> apply_to_all
+              </label>
+              <button type='submit'>POST /api/v1/direct-control/system</button>
+            </form>
+
+            <h2>Agent Say</h2>
+            <form method='post' action='/admin/vtuber/agent-say'>
+              <label>text (required):<br/>
+                <textarea name='text' rows='3' placeholder='Что думаешь про эту дилемму?'></textarea>
+              </label>
+              <label>client_uid (optional):
+                <input type='text' name='client_uid' placeholder='target session uid'/>
+              </label>
+              <label>
+                <input type='checkbox' name='apply_to_all'/> apply_to_all
+              </label>
+              <button type='submit'>POST /api/v1/direct-control/agent-say</button>
+            </form>
           </body>
         </html>
         """
@@ -263,6 +298,92 @@ def create_app() -> FastAPI:
           <body>
             <p><a href='/admin/vtuber'>&larr; Back</a></p>
             <h1>Speak Result</h1>
+            {result_html}
+          </body>
+        </html>
+        """
+
+    @app.post("/admin/vtuber/system", response_class=HTMLResponse)
+    async def vtuber_system(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
+        form = await request.form()
+        api_root = Settings().vtuber_api_root
+        text = str(form.get("text") or "").strip()
+        client_uid = str(form.get("client_uid") or "").strip() or None
+        mode = str(form.get("mode") or "append").strip() or "append"
+        apply_to_all = form.get("apply_to_all") is not None
+        if not text:
+            result_html = "<pre style='color:#b00;'>Error: text is required</pre>"
+        else:
+            client = VtuberClient(api_root)
+            try:
+                resp = await client.system_instruction(
+                    text=text,
+                    client_uid=client_uid,
+                    mode=mode,
+                    apply_to_all=apply_to_all,
+                )
+                import json
+
+                result_html = (
+                    f"<p>API root: <code>{api_root}</code></p>"
+                    f"<pre>{json.dumps(resp, ensure_ascii=False, indent=2)}</pre>"
+                )
+            except Exception as e:  # noqa: BLE001
+                result_html = (
+                    f"<p>API root: <code>{api_root}</code></p>"
+                    f"<pre style='color:#b00;'>Error: {e!s}</pre>"
+                )
+        return f"""
+        <html>
+          <head>
+            <meta charset='utf-8' />
+            <title>System — VTuber</title>
+          </head>
+          <body>
+            <p><a href='/admin/vtuber'>&larr; Back</a></p>
+            <h1>System Result</h1>
+            {result_html}
+          </body>
+        </html>
+        """
+
+    @app.post("/admin/vtuber/agent-say", response_class=HTMLResponse)
+    async def vtuber_agent_say(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
+        form = await request.form()
+        api_root = Settings().vtuber_api_root
+        text = str(form.get("text") or "").strip()
+        client_uid = str(form.get("client_uid") or "").strip() or None
+        apply_to_all = form.get("apply_to_all") is not None
+        if not text:
+            result_html = "<pre style='color:#b00;'>Error: text is required</pre>"
+        else:
+            client = VtuberClient(api_root)
+            try:
+                resp = await client.agent_say(
+                    text=text,
+                    client_uid=client_uid,
+                    apply_to_all=apply_to_all,
+                )
+                import json
+
+                result_html = (
+                    f"<p>API root: <code>{api_root}</code></p>"
+                    f"<pre>{json.dumps(resp, ensure_ascii=False, indent=2)}</pre>"
+                )
+            except Exception as e:  # noqa: BLE001
+                result_html = (
+                    f"<p>API root: <code>{api_root}</code></p>"
+                    f"<pre style='color:#b00;'>Error: {e!s}</pre>"
+                )
+        return f"""
+        <html>
+          <head>
+            <meta charset='utf-8' />
+            <title>Agent Say — VTuber</title>
+          </head>
+          <body>
+            <p><a href='/admin/vtuber'>&larr; Back</a></p>
+            <h1>Agent Say Result</h1>
             {result_html}
           </body>
         </html>

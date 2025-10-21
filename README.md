@@ -117,6 +117,8 @@ PRs приветствуются. Предложения по схеме анк�
 Эндпоинты
 - `GET /api/v1/sessions` — список активных `client_uid` (целевые сессии).
 - `POST /api/v1/direct-control/speak` — запустить речь TTS и (опционально) движения/эмоции.
+- `POST /api/v1/direct-control/system` — применить системную инструкцию (mode: append|prepend|reset; можно `apply_to_all`).
+- `POST /api/v1/direct-control/agent-say` — заставить агента (LLM) ответить сейчас (как будто пользователь написал).
 
 Тело запроса (POST /api/v1/direct-control/speak)
 - `text` (string, required): что сказать.
@@ -157,7 +159,22 @@ curl -X POST http://localhost:7860/api/v1/direct-control/speak \
 curl -X POST http://localhost:7860/api/v1/direct-control/speak \
   -H "Content-Type: application/json" \
   -d '{"text":"Музыка! [motion:dance2b]","display_name":"DJ","avatar":"https://…/avatar.png","extract_emotions":false}'
+
+# Применить системную инструкцию (append)
+curl -X POST http://localhost:7860/api/v1/direct-control/system \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Ты доброжелательный ведущий вечеринки.","mode":"append"}'
+
+# Заставить агента ответить (как ход LLM сейчас)
+curl -X POST http://localhost:7860/api/v1/direct-control/agent-say \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Что думаешь про эту дилемму?"}'
 ```
+
+Прочее
+- `POST /asr` — распознавание речи (multipart/form-data, поле `file` с WAV 16‑bit PCM); ответ: `{ text }`.
+- `GET /live2d-models/info` — сведения о моделях в `live2d-models` (пути, аватар и т.п.).
+- `GET /web-tool`, `GET /web_tool` — редирект на страницу утилит `/web-tool/index.html`.
 
 Заметки
 - 1–2 (максимум 3 коротких) motion на сообщение — для стабильности.
