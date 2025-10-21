@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -11,7 +12,31 @@ from ..models import SurveyAnswer, SurveyRun, User
 from .schema import QuestionSpec, SurveySpec
 
 
-SURVEYS_DIR = Path(__file__).resolve().parent.parent.parent / "surveys"
+def _project_root() -> Path:
+    p = Path(__file__).resolve()
+    for anc in p.parents:
+        if (anc / "pyproject.toml").exists():
+            return anc
+    # Fallback: up to 4 levels (src/pkg/...)
+    return p.parents[4] if len(p.parents) >= 5 else p.parents[-1]
+
+
+def _resolve_surveys_dir() -> Path:
+    env_dir = os.getenv("SURVEYS_DIR")
+    if env_dir:
+        d = Path(env_dir)
+        if d.exists():
+            return d
+    # Prefer repo-root surveys/
+    root_dir = _project_root() / "surveys"
+    if root_dir.exists():
+        return root_dir
+    # Fallback to package-adjacent surveys/
+    pkg_dir = Path(__file__).resolve().parents[2] / "surveys"
+    return pkg_dir
+
+
+SURVEYS_DIR = _resolve_surveys_dir()
 
 
 def load_survey(key: str) -> SurveySpec:
@@ -97,4 +122,3 @@ def complete_run(run_id: int) -> None:
         run.completed_at = datetime.utcnow()
         session.add(run)
         session.commit()
-
