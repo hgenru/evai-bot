@@ -141,7 +141,7 @@ def create_app() -> FastAPI:
             <p><b>Configured API root:</b> {settings.vtuber_api_root}</p>
             <h2>List Sessions</h2>
             <form method='post' action='/admin/vtuber/sessions'>
-              <button type='submit'>Get /v1/sessions</button>
+              <button type='submit'>Get /api/v1/sessions</button>
             </form>
 
             <h2>Speak</h2>
@@ -168,7 +168,7 @@ def create_app() -> FastAPI:
               <label>
                 <input type='checkbox' name='extract_emotions'/> extract_emotions (server auto‑extract)
               </label>
-              <button type='submit'>POST /v1/direct-control/speak</button>
+              <button type='submit'>POST /api/v1/direct-control/speak</button>
             </form>
           </body>
         </html>
