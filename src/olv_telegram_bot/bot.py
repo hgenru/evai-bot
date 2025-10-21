@@ -63,8 +63,8 @@ async def cmd_survey(message: Message) -> None:
     await start_survey_flow(message, survey_key=key)
 
 
-async def start_survey_flow(message: Message, *, survey_key: str) -> None:
-    tg_user = message.from_user
+async def start_survey_flow(message: Message, *, survey_key: str, tg_user_override=None) -> None:
+    tg_user = tg_user_override or message.from_user
     if not tg_user:
         return
     user = get_or_create_user(
@@ -126,7 +126,8 @@ async def present_current_question(message_or_cb: Message | CallbackQuery, run: 
 @router.callback_query(F.data.startswith("survey:start:"))
 async def cb_start_survey(cb: CallbackQuery) -> None:
     survey_key = cb.data.split(":", 2)[2]
-    await start_survey_flow(cb.message, survey_key=survey_key)
+    # Use the user who clicked the button, not the bot (message author)
+    await start_survey_flow(cb.message, survey_key=survey_key, tg_user_override=cb.from_user)
     await cb.answer()
 
 
