@@ -107,13 +107,14 @@
 - Интеграция с модифицированным Open‑LLM‑VTuber API для персонализированного общения.
 
 ## Анкеты (JSON)
-- Анкета описывается в JSON и хранится в `surveys/<key>.json`.
-- Регистрация использует анкету `surveys/registration.json`.
+- Анкета описывается в JSON и хранится в `src/olv_telegram_bot/surveys/data/<key>.json`.
+- Регистрация использует анкету `src/olv_telegram_bot/surveys/data/registration.json`.
 - Типы вопросов: `text` (свободный ответ), `choice` (кнопки вариантов).
 - Прохождение хранится в БД: `SurveyRun`, ответы — в `SurveyAnswer`.
 - Команды:
   - `/start` — приветствие + кнопка «Регистрация».
   - `/register` — запустить регистрацию вручную.
+  - `/survey <key>` — запустить любую анкету по ключу.
 
 Пример `surveys/registration.json`:
 ```

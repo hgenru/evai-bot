@@ -45,6 +45,24 @@ async def cmd_register(message: Message) -> None:
     await start_survey_flow(message, survey_key="registration")
 
 
+@router.message(Command("survey"))
+async def cmd_survey(message: Message) -> None:
+    # Usage: /survey <key>
+    text = message.text or ""
+    parts = text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Использование: /survey <key> (например, /survey registration)")
+        return
+    key = parts[1].strip()
+    try:
+        # probe load to validate key
+        _ = load_survey(key)
+    except Exception:
+        await message.answer("Не нашёл такую анкету")
+        return
+    await start_survey_flow(message, survey_key=key)
+
+
 async def start_survey_flow(message: Message, *, survey_key: str) -> None:
     tg_user = message.from_user
     if not tg_user:
@@ -164,4 +182,3 @@ async def run_bot() -> None:
     dp.include_router(router)
 
     await dp.start_polling(bot)
-
