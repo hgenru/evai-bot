@@ -106,6 +106,44 @@
 - Реал‑тайм опросы и агрегатор результатов для экрана/стрима.
 - Интеграция с модифицированным Open‑LLM‑VTuber API для персонализированного общения.
 
+## Анкеты (JSON)
+- Анкета описывается в JSON и хранится в `surveys/<key>.json`.
+- Регистрация использует анкету `surveys/registration.json`.
+- Типы вопросов: `text` (свободный ответ), `choice` (кнопки вариантов).
+- Прохождение хранится в БД: `SurveyRun`, ответы — в `SurveyAnswer`.
+- Команды:
+  - `/start` — приветствие + кнопка «Регистрация».
+  - `/register` — запустить регистрацию вручную.
+
+Пример `surveys/registration.json`:
+```
+{
+  "key": "registration",
+  "title": "Регистрация участника",
+  "description": "Базовые вопросы перед началом вечеринки",
+  "questions": [
+    { "id": "name", "type": "text", "prompt": "Как тебя зовут? (имя на бейдж)" },
+    {
+      "id": "role",
+      "type": "choice",
+      "prompt": "Чем занимаешься?",
+      "choices": [
+        { "label": "Инженер / Dev / ML", "value": "engineer" },
+        { "label": "Дизайн / Продюсирование", "value": "design" },
+        { "label": "Маркетинг / Продажи", "value": "marketing" },
+        { "label": "Другое", "value": "other" }
+      ]
+    },
+    { "id": "fun_fact", "type": "text", "prompt": "Расскажи забавный факт о себе (для шуток ИИ)" }
+  ]
+}
+```
+
+Схема JSON (вкратце):
+- Корень: `key`, `title`, `description?`, `questions[]`.
+- Вопрос: `id`, `type: "text"|"choice"`, `prompt`, `required?` (по умолчанию true), `choices[]?`.
+- Вариант: `label`, `value`.
+
 PRs приветствуются. Предложения по схеме анкет и механикам — пиши в issues.
 
 ## VTuber Direct Control (Cheat‑Sheet)

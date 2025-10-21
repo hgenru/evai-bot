@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-import asyncio
-
-from aiogram import Bot, Dispatcher, Router
-from aiogram.filters import CommandStart
-from aiogram.types import Message
+from aiogram import Bot, Dispatcher, F, Router
+from aiogram.filters import Command, CommandStart
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from .config import Settings
-from .db import init_db
+from .db import get_session, init_db
+from .models import SurveyRun, User
+from .surveys.engine import (
+    complete_run,
+    get_current_question,
+    get_or_create_user,
+    load_survey,
+    record_answer_and_advance,
+    start_survey_run,
+)
 
 
 router = Router()
@@ -15,10 +22,137 @@ router = Router()
 
 @router.message(CommandStart())
 async def handle_start(message: Message) -> None:
-    await message.answer(
-        "Привет! Добро пожаловать на OLV party. "
-        "Скоро запустим регистрацию и анкеты."
+    tg_user = message.from_user
+    if not tg_user:
+        return
+    _ = get_or_create_user(
+        tg_id=tg_user.id,
+        username=tg_user.username,
+        first_name=tg_user.first_name,
+        last_name=tg_user.last_name,
     )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="Регистрация", callback_data="survey:start:registration")]]
+    )
+    await message.answer(
+        "Привет! Добро пожаловать на OLV party. Нажми, чтобы пройти регистрацию.",
+        reply_markup=kb,
+    )
+
+
+@router.message(Command("register"))
+async def cmd_register(message: Message) -> None:
+    await start_survey_flow(message, survey_key="registration")
+
+
+async def start_survey_flow(message: Message, *, survey_key: str) -> None:
+    tg_user = message.from_user
+    if not tg_user:
+        return
+    user = get_or_create_user(
+        tg_id=tg_user.id,
+        username=tg_user.username,
+        first_name=tg_user.first_name,
+        last_name=tg_user.last_name,
+    )
+    spec = load_survey(survey_key)
+    run = start_survey_run(user_id=user.id or 0, survey_key=spec.key)
+    await present_current_question(message, run, spec)
+
+
+async def present_current_question(message_or_cb: Message | CallbackQuery, run: SurveyRun, spec):
+    q = get_current_question(run, spec)
+    if not q:
+        complete_run(run.id or 0)
+        text = "Спасибо! Регистрация завершена."
+        if isinstance(message_or_cb, CallbackQuery):
+            await message_or_cb.message.edit_text(text)
+            await message_or_cb.answer()
+        else:
+            await message_or_cb.answer(text)
+        # Mark user as registered (best-effort)
+        with get_session() as session:
+            u = session.get(User, run.user_id)
+            if u:
+                u.is_registered = True
+                session.add(u)
+                session.commit()
+        return
+    if q.type == "choice" and q.choices:
+        rows = [
+            [
+                InlineKeyboardButton(
+                    text=c.label,
+                    callback_data=f"survey:answer:{run.id}:{q.id}:{c.value}",
+                )
+            ]
+            for c in q.choices
+        ]
+        kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        text = q.prompt
+        if isinstance(message_or_cb, CallbackQuery):
+            await message_or_cb.message.edit_text(text, reply_markup=kb)
+            await message_or_cb.answer()
+        else:
+            await message_or_cb.answer(text, reply_markup=kb)
+    else:
+        # text question: prompt and expect next message
+        text = q.prompt + "\n(Напиши ответ сообщением)"
+        if isinstance(message_or_cb, CallbackQuery):
+            await message_or_cb.message.edit_text(text)
+            await message_or_cb.answer()
+        else:
+            await message_or_cb.answer(text)
+
+
+@router.callback_query(F.data.startswith("survey:start:"))
+async def cb_start_survey(cb: CallbackQuery) -> None:
+    survey_key = cb.data.split(":", 2)[2]
+    await start_survey_flow(cb.message, survey_key=survey_key)
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("survey:answer:"))
+async def cb_choice_answer(cb: CallbackQuery) -> None:
+    try:
+        _, _, run_id_s, question_id, value = cb.data.split(":", 4)
+        run_id = int(run_id_s)
+    except Exception:
+        await cb.answer("Некорректные данные", show_alert=True)
+        return
+    # Persist and advance
+    run = record_answer_and_advance(run_id, question_id, choice=value)
+    spec = load_survey(run.survey_key)
+    await present_current_question(cb, run, spec)
+
+
+@router.message()
+async def on_any_message(message: Message) -> None:
+    tg_user = message.from_user
+    if not tg_user or not message.text:
+        return
+    # Find active run for this user
+    from sqlmodel import select
+
+    with get_session() as session:
+        user = session.exec(select(User).where(User.tg_id == tg_user.id)).first()
+        if not user:
+            return
+        run = session.exec(
+            select(SurveyRun).where(
+                (SurveyRun.completed_at.is_(None)) & (SurveyRun.user_id == user.id)
+            )
+        ).first()
+        if not run:
+            return
+        spec = load_survey(run.survey_key)
+        q = get_current_question(run, spec)
+        if not q or q.type != "text":
+            return
+    # Record answer and present next
+    run = record_answer_and_advance(run.id or 0, q.id, text=message.text.strip())
+    spec = load_survey(run.survey_key)
+    await present_current_question(message, run, spec)
 
 
 async def run_bot() -> None:

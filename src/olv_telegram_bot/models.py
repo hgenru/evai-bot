@@ -37,3 +37,20 @@ class ParticipantResponse(SQLModel, table=True):
     # JSON blob with answers (temporary, later we’ll normalize or keep hybrid)
     payload_json: str
 
+
+class SurveyRun(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    completed_at: Optional[datetime] = None
+    user_id: int = Field(foreign_key="user.id")
+    survey_key: str = Field(index=True)
+    current_index: int = Field(default=0)
+
+
+class SurveyAnswer(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    run_id: int = Field(foreign_key="surveyrun.id")
+    question_id: str = Field(index=True)
+    answer_text: Optional[str] = None
+    answer_choice: Optional[str] = None
