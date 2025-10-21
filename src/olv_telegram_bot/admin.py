@@ -141,17 +141,11 @@ def create_app() -> FastAPI:
             <p><b>Configured API root:</b> {settings.vtuber_api_root}</p>
             <h2>List Sessions</h2>
             <form method='post' action='/admin/vtuber/sessions'>
-              <label>API root (override):
-                <input type='text' name='api_root' placeholder='{settings.vtuber_api_root}' />
-              </label>
               <button type='submit'>Get /v1/sessions</button>
             </form>
 
             <h2>Speak</h2>
             <form method='post' action='/admin/vtuber/speak'>
-              <label>API root (override):
-                <input type='text' name='api_root' placeholder='{settings.vtuber_api_root}' />
-              </label>
               <label>text (required):<br/>
                 <textarea name='text' rows='4' placeholder='Привет! [motion:walk2b] ...'></textarea>
               </label>
@@ -181,9 +175,8 @@ def create_app() -> FastAPI:
         """
 
     @app.post("/admin/vtuber/sessions", response_class=HTMLResponse)
-    async def vtuber_list_sessions(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
-        form = await request.form()
-        api_root = (str(form.get("api_root") or "").strip()) or Settings().vtuber_api_root
+    async def vtuber_list_sessions(_: Auth) -> str:  # type: ignore[no-untyped-def]
+        api_root = Settings().vtuber_api_root
         client = VtuberClient(api_root)
         try:
             sessions = await client.list_sessions()
@@ -211,7 +204,7 @@ def create_app() -> FastAPI:
     @app.post("/admin/vtuber/speak", response_class=HTMLResponse)
     async def vtuber_speak(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
         form = await request.form()
-        api_root = (str(form.get("api_root") or "").strip()) or Settings().vtuber_api_root
+        api_root = Settings().vtuber_api_root
         text = str(form.get("text") or "").strip()
         client_uid = str(form.get("client_uid") or "").strip() or None
         display_name = str(form.get("display_name") or "").strip() or None
