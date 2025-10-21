@@ -13,7 +13,10 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     try:
-        asyncio.run(asyncio.gather(run_bot(), run_admin()))
+        async def _runner() -> None:
+            await asyncio.gather(run_bot(), run_admin())
+
+        asyncio.run(_runner())
     except KeyboardInterrupt:
         pass
 
