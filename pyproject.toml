@@ -27,6 +27,8 @@ dev = [
 
 [project.scripts]
 olv-bot = "olv_telegram_bot.main:main"
+ovl-bot = "olv_telegram_bot.main:main"
+bot = "olv_telegram_bot.main:main"
 
 [tool.uv]
 package = true

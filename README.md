@@ -32,7 +32,8 @@
 - Скопируй `.env.example` → `.env`, заполни `BOT_TOKEN`; при желании поменяй `DATABASE_URL`.
 
 4) Запуск
-- `uv run olv-bot` (бот на polling + админка на `http://127.0.0.1:8080/`)
+- `uv run bot` (бот на polling + админка на `http://127.0.0.1:8080/`)
+- Алиасы: `uv run olv-bot` или `uv run ovl-bot`
 
 ## Локально vs Сервер
 - Локально (polling): просто и быстро, публичный адрес не нужен.
