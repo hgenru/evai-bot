@@ -34,7 +34,7 @@ class ParticipantResponse(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     user_id: int = Field(foreign_key="user.id")
     survey_id: int = Field(foreign_key="survey.id")
-    # JSON blob with answers (temporary, later we’ll normalize or keep hybrid)
+    # JSON blob with answers (temporary, later wefTll normalize or keep hybrid)
     payload_json: str
 
 
@@ -54,3 +54,4 @@ class SurveyAnswer(SQLModel, table=True):
     question_id: str = Field(index=True)
     answer_text: Optional[str] = None
     answer_choice: Optional[str] = None
+

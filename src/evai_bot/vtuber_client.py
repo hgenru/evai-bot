@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -24,29 +24,19 @@ class VtuberClient:
         *,
         text: str,
         client_uid: Optional[str] = None,
-        display_name: Optional[str] = None,
-        avatar: Optional[str] = None,
-        motions: Optional[Sequence[str]] = None,
-        expressions: Optional[Sequence[Union[str, int]]] = None,
-        extract_emotions: Optional[bool] = None,
+        apply_to_all: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        url = f"{self.base_url}/v1/direct-control/speak"
+        """TTS-only speak; does not update memory.
+
+        Matches POST /v1/control/speak
+        Body: {"text":"...","client_uid":"<uid>|null","apply_to_all":false}
+        """
+        url = f"{self.base_url}/v1/control/speak"
         payload: Dict[str, Any] = {"text": text}
         if client_uid:
             payload["client_uid"] = client_uid
-        if display_name:
-            payload["display_name"] = display_name
-        if avatar:
-            payload["avatar"] = avatar
-        actions: Dict[str, Any] = {}
-        if motions:
-            actions["motions"] = list(motions)
-        if expressions:
-            actions["expressions"] = list(expressions)
-        if actions:
-            payload["actions"] = actions
-        if extract_emotions is not None:
-            payload["extract_emotions"] = extract_emotions
+        if apply_to_all is not None:
+            payload["apply_to_all"] = apply_to_all
 
         async with httpx.AsyncClient(timeout=20.0) as client:
             resp = await client.post(url, json=payload)
@@ -61,7 +51,7 @@ class VtuberClient:
         mode: str = "append",
         apply_to_all: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        url = f"{self.base_url}/v1/direct-control/system"
+        url = f"{self.base_url}/v1/control/system"
         payload: Dict[str, Any] = {"text": text, "mode": mode}
         if client_uid:
             payload["client_uid"] = client_uid
@@ -72,14 +62,19 @@ class VtuberClient:
             resp.raise_for_status()
             return resp.json()
 
-    async def agent_say(
+    async def respond(
         self,
         *,
         text: str,
         client_uid: Optional[str] = None,
         apply_to_all: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        url = f"{self.base_url}/v1/direct-control/agent-say"
+        """Trigger an agent response (LLM turn). 
+
+        Matches POST /v1/control/respond
+        Body: {"text":"...","client_uid":"<uid>|null","apply_to_all":false}
+        """
+        url = f"{self.base_url}/v1/control/respond"
         payload: Dict[str, Any] = {"text": text}
         if client_uid:
             payload["client_uid"] = client_uid
@@ -89,3 +84,14 @@ class VtuberClient:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             return resp.json()
+
+    # Backward-compat alias for older admin code
+    async def agent_say(
+        self,
+        *,
+        text: str,
+        client_uid: Optional[str] = None,
+        apply_to_all: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        return await self.respond(text=text, client_uid=client_uid, apply_to_all=apply_to_all)
+

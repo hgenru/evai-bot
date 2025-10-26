@@ -34,10 +34,10 @@ async def handle_start(message: Message) -> None:
         last_name=tg_user.last_name,
     )
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Регистрация", callback_data="survey:start:registration")]]
+        inline_keyboard=[[InlineKeyboardButton(text="Заполнить анкету", callback_data="survey:start:registration")]]
     )
     await message.answer(
-        "Привет! Добро пожаловать на OLV party. Нажми, чтобы пройти регистрацию.",
+        "Привет! Добро пожаловать на EVAI party. Нажми, чтобы пройти регистрацию.",
         reply_markup=kb,
     )
 
@@ -53,14 +53,14 @@ async def cmd_survey(message: Message) -> None:
     text = message.text or ""
     parts = text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Использование: /survey <key> (например, /survey registration)")
+        await message.answer("Формат: /survey <key> (напр., /survey registration)")
         return
     key = parts[1].strip()
     try:
         # probe load to validate key
         _ = load_survey(key)
     except Exception:
-        await message.answer("Не нашёл такую анкету")
+        await message.answer("Анкета не найдена")
         return
     await start_survey_flow(message, survey_key=key)
 
@@ -86,7 +86,7 @@ async def present_current_question(message_or_cb: Message | CallbackQuery, run: 
     q = get_current_question(run, spec)
     if not q:
         complete_run(run.id or 0)
-        text = "Спасибо! Регистрация завершена."
+        text = "Готово! Регистрация завершена."
         if isinstance(message_or_cb, CallbackQuery):
             await message_or_cb.message.edit_text(text)
             await message_or_cb.answer()
@@ -119,7 +119,7 @@ async def present_current_question(message_or_cb: Message | CallbackQuery, run: 
             await message_or_cb.answer(text, reply_markup=kb)
     else:
         # text question: prompt and expect next message
-        text = q.prompt + "\n(Напиши ответ сообщением)"
+        text = q.prompt + "\n(введите текст и отправьте)"
         if isinstance(message_or_cb, CallbackQuery):
             await message_or_cb.message.edit_text(text)
             await message_or_cb.answer()
@@ -141,7 +141,7 @@ async def cb_choice_answer(cb: CallbackQuery) -> None:
         _, _, run_id_s, question_id, value = cb.data.split(":", 4)
         run_id = int(run_id_s)
     except Exception:
-        await cb.answer("Некорректные данные", show_alert=True)
+        await cb.answer("Некорректные данные кнопки", show_alert=True)
         return
     # Persist and advance
     run = record_answer_and_advance(run_id, question_id, choice=value)
@@ -187,3 +187,4 @@ async def run_bot() -> None:
     dp.include_router(router)
 
     await dp.start_polling(bot)
+

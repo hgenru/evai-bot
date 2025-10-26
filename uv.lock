@@ -180,6 +180,47 @@ wheels = [
 ]
 
 [[package]]
+name = "evai-bot"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiogram" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "sqlmodel" },
+    { name = "structlog" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiogram", specifier = ">=3.10.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "httpx", specifier = ">=0.27.2" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.2" },
+    { name = "pydantic", specifier = ">=2.9.0" },
+    { name = "pydantic-settings", specifier = ">=2.4.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.3" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "python-multipart", specifier = ">=0.0.9" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.9" },
+    { name = "sqlmodel", specifier = ">=0.0.22" },
+    { name = "structlog", specifier = ">=24.4.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.6" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.119.1"
 source = { registry = "https://pypi.org/simple" }
@@ -602,47 +643,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8dac321cda606860fa4548858c0cc45d9d1d4ca2628b/mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558", size = 6343 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963 },
-]
-
-[[package]]
-name = "olv-telegram-bot"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aiogram" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "sqlmodel" },
-    { name = "structlog" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiogram", specifier = ">=3.10.0" },
-    { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "httpx", specifier = ">=0.27.2" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.2" },
-    { name = "pydantic", specifier = ">=2.9.0" },
-    { name = "pydantic-settings", specifier = ">=2.4.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.3" },
-    { name = "python-dotenv", specifier = ">=1.0.1" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.9" },
-    { name = "sqlmodel", specifier = ">=0.0.22" },
-    { name = "structlog", specifier = ">=24.4.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.6" },
 ]
 
 [[package]]

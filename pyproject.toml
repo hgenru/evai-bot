@@ -1,5 +1,5 @@
 [project]
-name = "olv-telegram-bot"
+name = "evai-bot"
 version = "0.1.0"
 description = "Telegram bot for Open-LLM-VTuber party: registration, surveys, scoring"
 readme = "README.md"
@@ -27,9 +27,8 @@ dev = [
 ]
 
 [project.scripts]
-olv-bot = "olv_telegram_bot.main:main"
-ovl-bot = "olv_telegram_bot.main:main"
-bot = "olv_telegram_bot.main:main"
+evai-bot = "evai_bot.main:main"
+bot = "evai_bot.main:main"
 
 [tool.uv]
 package = true

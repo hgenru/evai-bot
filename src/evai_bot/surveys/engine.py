@@ -97,3 +97,4 @@ def complete_run(run_id: int) -> None:
         run.completed_at = datetime.utcnow()
         session.add(run)
         session.commit()
+

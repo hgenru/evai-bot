@@ -30,7 +30,7 @@ Auth = Annotated[None, Depends(_auth_dependency)]
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="OLV Admin", version="0.1.0")
+    app = FastAPI(title="EVAI Admin", version="0.1.0")
 
     @app.on_event("startup")
     def _startup() -> None:
@@ -51,7 +51,7 @@ def create_app() -> FastAPI:
         rows = []
         for u in users:
             name = " ".join(filter(None, [u.first_name, u.last_name])) or (u.username or "-")
-            reg_badge = "✅" if u.is_registered else "❌"
+            reg_badge = "✓" if u.is_registered else "✗"
             rows.append(
                 f"<tr>"
                 f"<td>{u.id}</td>"
@@ -75,7 +75,7 @@ def create_app() -> FastAPI:
         <html>
           <head>
             <meta charset='utf-8' />
-            <title>OLV Admin — Users</title>
+            <title>EVAI Admin — Users</title>
             <style>
               body {{ font-family: system-ui, sans-serif; padding: 20px; }}
               table {{ border-collapse: collapse; width: 100%; }}
@@ -159,7 +159,7 @@ def create_app() -> FastAPI:
                     f"<tr><td>{a.created_at:%Y-%m-%d %H:%M:%S}</td><td>{a.question_id}</td><td>{a.answer_choice or ''}</td><td>{(a.answer_text or '').replace('<','&lt;')}</td></tr>"
                     for a in answers
                 ) or "<tr><td colspan='4'>—</td></tr>"
-                status = "✅ completed" if r.completed_at else "⏳ in progress"
+                status = "✓ completed" if r.completed_at else "… in progress"
                 blocks.append(
                     f"<h3>Run #{r.id} — {r.survey_key} — {status}</h3>"
                     f"<table><thead><tr><th>Time</th><th>Question</th><th>Choice</th><th>Text</th></tr></thead><tbody>{items}</tbody></table>"
@@ -196,7 +196,7 @@ def create_app() -> FastAPI:
         <html>
           <head>
             <meta charset='utf-8' />
-            <title>OLV Admin — VTuber Control</title>
+            <title>EVAI Admin — VTuber Control</title>
             <style>
               body {{ font-family: system-ui, sans-serif; padding: 20px; max-width: 960px; }}
               form {{ margin: 16px 0; padding: 12px; border: 1px solid #ddd; }}
@@ -215,7 +215,7 @@ def create_app() -> FastAPI:
             <p><b>Configured API root:</b> {settings.vtuber_api_root}</p>
             <h2>List Sessions</h2>
             <form method='post' action='/admin/vtuber/sessions'>
-              <button type='submit'>Get /api/v1/sessions</button>
+              <button type='submit'>GET /v1/sessions</button>
             </form>
 
             <h2>Speak</h2>
@@ -234,68 +234,61 @@ def create_app() -> FastAPI:
               </label>
               <label>actions.motions (comma or space separated):
                 <input type='text' name='motions' placeholder='walk2b, jump2b'/>
-                <small>Имена должны совпадать с motionMap модели.</small>
+                <small>Список совпадает с motionMap движка.</small>
               </label>
               <label>actions.expressions (comma/space; strings or ints):
                 <input type='text' name='expressions' placeholder='joy, 3'/>
               </label>
               <label>
-                <input type='checkbox' name='extract_emotions'/> extract_emotions (server auto‑extract)
+                <input type='checkbox' name='apply_to_all' /> apply_to_all (broadcast)
               </label>
-              <button type='submit'>POST /api/v1/direct-control/speak</button>
+              <button type='submit'>POST /v1/control/speak</button>
             </form>
 
             <h2>System Instruction</h2>
             <form method='post' action='/admin/vtuber/system'>
-              <label>text (required):<br/>
-                <textarea name='text' rows='3' placeholder='Ты доброжелательный ведущий вечеринки.'></textarea>
-              </label>
-              <label>client_uid (optional):
-                <input type='text' name='client_uid' placeholder='target session uid'/>
+              <label>text (required):
+                <textarea name='text' rows='3' placeholder='System prompt...'></textarea>
               </label>
               <label>mode:
-                <select name='mode'>
-                  <option value='append' selected>append</option>
-                  <option value='prepend'>prepend</option>
-                  <option value='reset'>reset</option>
-                </select>
-              </label>
-              <label>
-                <input type='checkbox' name='apply_to_all'/> apply_to_all
-              </label>
-              <button type='submit'>POST /api/v1/direct-control/system</button>
-            </form>
-
-            <h2>Agent Say</h2>
-            <form method='post' action='/admin/vtuber/agent-say'>
-              <label>text (required):<br/>
-                <textarea name='text' rows='3' placeholder='Что думаешь про эту дилемму?'></textarea>
+                <input type='text' name='mode' value='append' />
               </label>
               <label>client_uid (optional):
-                <input type='text' name='client_uid' placeholder='target session uid'/>
+                <input type='text' name='client_uid' />
               </label>
               <label>
-                <input type='checkbox' name='apply_to_all'/> apply_to_all
+                <input type='checkbox' name='apply_to_all' /> apply_to_all (broadcast)
               </label>
-              <button type='submit'>POST /api/v1/direct-control/agent-say</button>
+              <button type='submit'>POST /v1/control/system</button>
+            </form>
+
+            <h2>Respond (LLM)</h2>
+            <form method='post' action='/admin/vtuber/respond'>
+              <label>text (required):
+                <textarea name='text' rows='3' placeholder='User message...'></textarea>
+              </label>
+              <label>client_uid (optional):
+                <input type='text' name='client_uid' />
+              </label>
+              <label>
+                <input type='checkbox' name='apply_to_all' /> apply_to_all (broadcast)
+              </label>
+              <button type='submit'>POST /v1/control/respond</button>
             </form>
           </body>
         </html>
         """
 
     @app.post("/admin/vtuber/sessions", response_class=HTMLResponse)
-    async def vtuber_list_sessions(_: Auth) -> str:  # type: ignore[no-untyped-def]
+    async def vtuber_sessions(_: Auth) -> str:  # type: ignore[no-untyped-def]
         api_root = Settings().vtuber_api_root
         client = VtuberClient(api_root)
         try:
             sessions = await client.list_sessions()
-            items = "".join(f"<li>{s}</li>" for s in sessions) or "<li>no sessions</li>"
-            body = f"<p>API root: <code>{api_root}</code></p><ul>{items}</ul>"
+            items = "".join(f"<li><code>{s}</code></li>" for s in sessions) or "<li>—</li>"
+            result_html = f"<ul>{items}</ul>"
         except Exception as e:  # noqa: BLE001
-            body = (
-                f"<p>API root: <code>{api_root}</code></p>"
-                f"<pre style='color:#b00;'>Error: {e!s}</pre>"
-            )
+            result_html = f"<pre style='color:#b00;'>Error: {e!s}</pre>"
         return f"""
         <html>
           <head>
@@ -305,7 +298,7 @@ def create_app() -> FastAPI:
           <body>
             <p><a href='/admin/vtuber'>&larr; Back</a></p>
             <h1>Sessions</h1>
-            {body}
+            {result_html}
           </body>
         </html>
         """
@@ -316,41 +309,13 @@ def create_app() -> FastAPI:
         api_root = Settings().vtuber_api_root
         text = str(form.get("text") or "").strip()
         client_uid = str(form.get("client_uid") or "").strip() or None
-        display_name = str(form.get("display_name") or "").strip() or None
-        avatar = str(form.get("avatar") or "").strip() or None
-        motions_raw = str(form.get("motions") or "").strip()
-        expr_raw = str(form.get("expressions") or "").strip()
-        extract_emotions = form.get("extract_emotions") is not None
-
-        def _split_list(s: str) -> list[str]:
-            if not s:
-                return []
-            parts = [p for p in s.replace(",", " ").split() if p]
-            return parts
-
-        motions = _split_list(motions_raw)
-
-        expressions: list[object] = []
-        for p in _split_list(expr_raw):
-            try:
-                expressions.append(int(p))
-            except ValueError:
-                expressions.append(p)
-
+        apply_to_all = form.get("apply_to_all") is not None
         if not text:
             result_html = "<pre style='color:#b00;'>Error: text is required</pre>"
         else:
             client = VtuberClient(api_root)
             try:
-                resp = await client.speak(
-                    text=text,
-                    client_uid=client_uid,
-                    display_name=display_name,
-                    avatar=avatar,
-                    motions=motions or None,
-                    expressions=expressions or None,
-                    extract_emotions=extract_emotions,
-                )
+                resp = await client.speak(text=text, client_uid=client_uid, apply_to_all=apply_to_all)
                 import json
 
                 result_html = (
@@ -421,8 +386,8 @@ def create_app() -> FastAPI:
         </html>
         """
 
-    @app.post("/admin/vtuber/agent-say", response_class=HTMLResponse)
-    async def vtuber_agent_say(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
+    @app.post("/admin/vtuber/respond", response_class=HTMLResponse)
+    async def vtuber_respond(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
         form = await request.form()
         api_root = Settings().vtuber_api_root
         text = str(form.get("text") or "").strip()
@@ -433,7 +398,7 @@ def create_app() -> FastAPI:
         else:
             client = VtuberClient(api_root)
             try:
-                resp = await client.agent_say(
+                resp = await client.respond(
                     text=text,
                     client_uid=client_uid,
                     apply_to_all=apply_to_all,
@@ -453,11 +418,11 @@ def create_app() -> FastAPI:
         <html>
           <head>
             <meta charset='utf-8' />
-            <title>Agent Say — VTuber</title>
+            <title>Respond — VTuber</title>
           </head>
           <body>
             <p><a href='/admin/vtuber'>&larr; Back</a></p>
-            <h1>Agent Say Result</h1>
+            <h1>Respond Result</h1>
             {result_html}
           </body>
         </html>
@@ -477,3 +442,4 @@ async def run_admin() -> None:
     )
     server = uvicorn.Server(config)
     await server.serve()
+

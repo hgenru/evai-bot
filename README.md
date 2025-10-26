@@ -1,4 +1,4 @@
-# OLV Telegram Bot
+# EVAI Bot
 
 Телеграм‑бот для ивента Open‑LLM‑VTuber: регистрация гостей, анкеты (кнопки и свободные ответы), сохранение результатов в БД, опросы/задания и система баллов, простая админка.
 
@@ -150,16 +150,16 @@ PRs приветствуются. Предложения по схеме анк�
 ## VTuber Direct Control (Cheat‑Sheet)
 Бэкенд Open‑LLM‑VTuber управляется по HTTP, а отдаёт звук/движения уже подключённому веб‑клиенту по WebSocket.
 
-- База: API root = адрес запущенного сервера (например, `http://localhost:7860/api`).
+- База: API root = адрес запущенного сервера (например, `http://localhost:7860`).
 - Доставка: HTTP только триггерит событие; аудио/мошен пакеты уйдут по WS в браузерный клиент.
 
 Эндпоинты
-- `GET /api/v1/sessions` — список активных `client_uid` (целевые сессии).
-- `POST /api/v1/direct-control/speak` — запустить речь TTS и (опционально) движения/эмоции.
-- `POST /api/v1/direct-control/system` — применить системную инструкцию (mode: append|prepend|reset; можно `apply_to_all`).
-- `POST /api/v1/direct-control/agent-say` — заставить агента (LLM) ответить сейчас (как будто пользователь написал).
+- `GET /v1/sessions` — список активных `client_uid` (целевые сессии).
+- `POST /v1/control/speak` — запустить речь TTS и (опционально) движения/эмоции.
+- `POST /v1/control/system` — применить системную инструкцию (mode: append|prepend|reset; можно `apply_to_all`).
+- `POST /v1/control/respond` — заставить агента (LLM) ответить сейчас (как будто пользователь написал).
 
-Тело запроса (POST /api/v1/direct-control/speak)
+Тело запроса (POST /v1/control/speak)
 - `text` (string, required): что сказать.
 - `client_uid` (string, optional): куда отправить (если опущен — последний подключившийся клиент).
 - `display_name` (string, optional): подпись в UI.
@@ -182,30 +182,30 @@ PRs приветствуются. Предложения по схеме анк�
 Примеры cURL
 ```
 # Список сессий
-curl -s http://localhost:7860/api/v1/sessions
+curl -s http://localhost:7860/v1/sessions
 
 # Простая речь с инлайн‑жестами (тайминг по позициям токенов)
-curl -X POST http://localhost:7860/api/v1/direct-control/speak \
+curl -X POST http://localhost:7860/v1/control/speak \
   -H "Content-Type: application/json" \
   -d '{"text":"Привет! [motion:walk2b] Сейчас покажу. [motion:jump2b]","extract_emotions":false}'
 
 # Речь в конкретную сессию с явными motions/expressions
-curl -X POST http://localhost:7860/api/v1/direct-control/speak \
+curl -X POST http://localhost:7860/v1/control/speak \
   -H "Content-Type: application/json" \
   -d '{"client_uid":"<UID>","text":"Поехали!","actions":{"motions":["walk2b","jump2b"],"expressions":["joy"]},"extract_emotions":false}'
 
 # Речь с display info (имя/аватар)
-curl -X POST http://localhost:7860/api/v1/direct-control/speak \
+curl -X POST http://localhost:7860/v1/control/speak \
   -H "Content-Type: application/json" \
   -d '{"text":"Музыка! [motion:dance2b]","display_name":"DJ","avatar":"https://…/avatar.png","extract_emotions":false}'
 
 # Применить системную инструкцию (append)
-curl -X POST http://localhost:7860/api/v1/direct-control/system \
+curl -X POST http://localhost:7860/v1/control/system \
   -H "Content-Type: application/json" \
   -d '{"text":"Ты доброжелательный ведущий вечеринки.","mode":"append"}'
 
 # Заставить агента ответить (как ход LLM сейчас)
-curl -X POST http://localhost:7860/api/v1/direct-control/agent-say \
+curl -X POST http://localhost:7860/v1/control/respond \
   -H "Content-Type: application/json" \
   -d '{"text":"Что думаешь про эту дилемму?"}'
 ```
