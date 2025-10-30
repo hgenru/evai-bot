@@ -402,18 +402,22 @@ def create_app() -> FastAPI:
     @app.get("/admin/polls", response_class=HTMLResponse)
     def polls_admin(_: Auth) -> str:  # type: ignore[no-untyped-def]
         # Collect all surveys and their choice questions
-        entries: list[tuple[str, object]] = []
+        scanned: list[tuple[str, object]] = []
         for p in sorted(Path(SURVEYS_DIR).glob("*.json"), key=lambda x: x.stem):
-            key = p.stem
-            if key == "registration":
+            fname_key = p.stem
+            if fname_key == "registration":
                 # Регистрационный опрос управляется отдельно и имеет свою страницу
                 continue
             try:
-                spec = load_survey(key)
+                spec = load_survey(fname_key)
                 if any(q.type == "choice" for q in spec.questions):
-                    entries.append((key, spec))
+                    scanned.append((spec.key, spec))  # использовать ключ из файла
             except Exception:
                 continue
+        desired = ["pledge", "blue_red", "superpower", "two_stools", "dance_winner"]
+        by_key = {k: s for k, s in scanned}
+        entries: list[tuple[str, object]] = [(k, by_key[k]) for k in desired if k in by_key]
+        entries += sorted([(k, s) for k, s in scanned if k not in set(desired)], key=lambda t: t[1].title)
         # Build latest-start map per (survey_key, question_id)
         latest_started: dict[tuple[str, str], str] = {}
         with get_session() as session:
@@ -430,7 +434,7 @@ def create_app() -> FastAPI:
             for q in spec.questions:
                 if q.type != "choice":
                     continue
-                started_ts = latest_started.get((key, q.id))
+                started_ts = latest_started.get((spec.key, q.id))
                 status_html = (
                     f"<span class='muted'>Статус: <b style='color:#22c55e'>запущен</b> в {started_ts}</span>"
                     if started_ts
@@ -444,11 +448,11 @@ def create_app() -> FastAPI:
                     f"<div><div class='muted' style='margin-bottom:4px'>Текст:</div><pre style='margin:0; padding:8px; background:#fafafa; border:1px solid #eee; white-space:pre-wrap;'>{preview}</pre></div>"
                     f"<div style='margin-top:8px'>"
                     f"  <form style='display:inline-block;margin-right:8px' method='post' action='/admin/polls/start'>"
-                    f"    <input type='hidden' name='survey_key' value='{key}' />"
+                    f"    <input type='hidden' name='survey_key' value='{spec.key}' />"
                     f"    <input type='hidden' name='question_id' value='{q.id}' />"
                     f"    <button type='submit'>Старт</button>"
                     f"  </form>"
-                    f"  <a href='/live/survey/{key}' target='_blank'>Viewer</a>"
+                    f"  <a href='/live/survey/{spec.key}' target='_blank'>Viewer</a>"
                     f"</div>"
                     f"</div>"
                 )

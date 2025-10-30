@@ -5,7 +5,7 @@
     {
       "id": "choice_1",
       "type": "choice",
-      "prompt": "Кто победил на танцевальном конкурсе?",
+      "prompt": "",
       "choices": [
         { "label": "1", "value": "1" },
         { "label": "2", "value": "2" },
