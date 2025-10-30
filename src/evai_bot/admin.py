@@ -559,7 +559,7 @@ def create_app() -> FastAPI:
           <head>
             <meta charset='utf-8' />
             <title>{title}</title>
-            <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
             <style>
               body {{ margin: 0; background: #000; color: #fff; font-family: system-ui, sans-serif; }}
               .wrap {{ display:flex; align-items:center; gap:24px; padding: 24px; }}
@@ -571,7 +571,7 @@ def create_app() -> FastAPI:
           </head>
           <body>
             <div class='wrap'>
-              <div class='left'>{('<img src=\"' + image + '\" />') if image else ''}</div>
+              <div class='left'>{('<img src="' + image + '" />') if image else ''}</div>
               <div class='right'>
                 <h1>{title}</h1>
                 <canvas id='chart'></canvas>
@@ -658,7 +658,8 @@ def create_app() -> FastAPI:
           <body>
             <nav>
               <a href='/admin/users'>Users</a>
-              <a href='/admin/surveys'>Survey Results</a>
+              <a href='/admin/surveys'>Результаты регистрации</a>
+              <a href='/admin/polls'>Polls</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             
