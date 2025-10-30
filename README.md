@@ -33,7 +33,7 @@
 
 4) Запуск
 - `uv run bot` (бот на polling + админка на `http://127.0.0.1:8080/`)
-- Алиасы: `uv run olv-bot` или `uv run ovl-bot`
+- Алиасы: `uv run evai-bot` или `uv run bot`
 
 ## Локально vs Сервер
 - Локально (polling): просто и быстро, публичный адрес не нужен.
@@ -59,12 +59,12 @@
 - Git hooks через `lefthook` (pre-commit: формат, линт, типы).
 
 ## Структура проекта
-- `src/olv_telegram_bot/main.py` — CLI‑вход (`olv-bot`), запускает бота и админку.
-- `src/olv_telegram_bot/bot.py` — инициализация aiogram и хэндлеров.
-- `src/olv_telegram_bot/admin.py` — FastAPI админка.
-- `src/olv_telegram_bot/config.py` — настройки из `.env`.
-- `src/olv_telegram_bot/db.py` — подключение БД и сессии.
-- `src/olv_telegram_bot/models.py` — модели: `User`, `Survey`, `ParticipantResponse`.
+- `src/evai_bot/main.py` — CLI‑вход (`evai-bot`/`bot`), запускает бота и админку.
+- `src/evai_bot/bot.py` — инициализация aiogram и хэндлеров.
+- `src/evai_bot/admin.py` — FastAPI админка.
+- `src/evai_bot/config.py` — настройки из `.env`.
+- `src/evai_bot/db.py` — подключение БД и сессии.
+- `src/evai_bot/models.py` — модели: `User`, `Survey`, `ParticipantResponse`.
 - `pyproject.toml` — зависимости, настройки ruff/mypy, CLI‑скрипт.
 - `lefthook.yml` — pre-commit‑хуки.
 
@@ -107,8 +107,8 @@
 - Интеграция с модифицированным Open‑LLM‑VTuber API для персонализированного общения.
 
 ## Анкеты (JSON)
-- Анкета описывается в JSON и хранится в `src/olv_telegram_bot/surveys/data/<key>.json`.
-- Регистрация использует анкету `src/olv_telegram_bot/surveys/data/registration.json`.
+- Анкета описывается в JSON и хранится в `src/evai_bot/surveys/data/<key>.json`.
+- Регистрация использует анкету `src/evai_bot/surveys/data/registration.json`.
 - Типы вопросов: `text` (свободный ответ), `choice` (кнопки вариантов).
 - Прохождение хранится в БД: `SurveyRun`, ответы — в `SurveyAnswer`.
 - Команды:
