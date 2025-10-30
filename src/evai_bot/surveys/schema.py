@@ -18,6 +18,7 @@ class QuestionSpec(BaseModel):
     type: QuestionType
     prompt: str
     required: bool = True
+    image_url: Optional[str] = None
     choices: Optional[List[ChoiceOption]] = None  # for type="choice"
 
 

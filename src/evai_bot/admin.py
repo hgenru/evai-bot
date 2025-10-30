@@ -488,9 +488,6 @@ def create_app() -> FastAPI:
               <label>Question ID (from JSON)
                 <input type='text' name='question_id' placeholder='e.g. choice_1' />
               </label>
-              <label>Image URL (optional)
-                <input type='text' name='image_url' placeholder='https://example/image.png' />
-              </label>
               <button type='submit'>Start</button>
             </form>
             <form method='post' action='/admin/polls/stop'>
@@ -523,11 +520,10 @@ def create_app() -> FastAPI:
         data = anyio.from_thread.run(_parse)
         survey_key = (data.get("survey_key") or "").strip()
         question_id = (data.get("question_id") or "").strip()
-        image_url = (data.get("image_url") or "").strip() or None
         if not survey_key or not question_id:
             raise HTTPException(status_code=400, detail="survey_key and question_id required")
         with get_session() as session:
-            state = LivePollState(survey_key=survey_key, question_id=question_id, image_url=image_url)
+            state = LivePollState(survey_key=survey_key, question_id=question_id, image_url=None)
             session.add(state)
             session.commit()
         return RedirectResponse(url="/admin/polls", status_code=303)
@@ -592,7 +588,6 @@ def create_app() -> FastAPI:
             spec = load_survey(survey_key)
         except Exception:
             return "<html><body><p>Survey not found.</p></body></html>"
-        image = spec.image_url or ""
         title = spec.title
         return f"""
         <html>
@@ -611,7 +606,7 @@ def create_app() -> FastAPI:
           </head>
           <body>
             <div class='wrap'>
-              <div class='left'>{('<img src="' + image + '" />') if image else ''}</div>
+              <div class='left'><img id='pic' style='display:none' /></div>
               <div class='right'>
                 <h1>{title}</h1>
                 <canvas id='chart'></canvas>
@@ -624,6 +619,9 @@ def create_app() -> FastAPI:
                 const r = await fetch('/live/api/survey/{survey_key}');
                 if (!r.ok) return;
                 const data = await r.json();
+                // update image if provided
+                const img = document.getElementById('pic');
+                if (data.image_url) {{ img.src = data.image_url; img.style.display = 'block'; }} else {{ img.style.display = 'none'; }}
                 const cfg = {{
                   type: 'bar',
                   data: {{
@@ -676,7 +674,10 @@ def create_app() -> FastAPI:
         counts = Counter([v.value for v in votes])
         labels = [c.label for c in (q.choices or [])]
         series = [counts.get(c.value, 0) for c in (q.choices or [])]
-        return JSONResponse({"labels": labels, "counts": series, "title": spec.title, "prompt": q.prompt, "image_url": spec.image_url})
+        # Choose image: prefer question.image_url, else survey.image_url
+        q_image = getattr(q, "image_url", None)
+        image_url = q_image or getattr(spec, "image_url", None)
+        return JSONResponse({"labels": labels, "counts": series, "title": spec.title, "prompt": q.prompt, "image_url": image_url or ""})
 
     @app.get("/admin/vtuber", response_class=HTMLResponse)
     def vtuber_form(_: Auth) -> str:  # type: ignore[no-untyped-def]
