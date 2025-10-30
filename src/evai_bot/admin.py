@@ -118,7 +118,9 @@ def create_app() -> FastAPI:
 
     @app.get("/admin/surveys", response_class=HTMLResponse)
     def survey_all_results(_: Auth) -> str:  # type: ignore[no-untyped-def]
-        """Display results for all surveys on a single page with a copy-all button."""
+        """Display results for all surveys on a single page with a copy-all button.
+        Readable text is grouped by participants: one block per user with Q: A lines.
+        """
         from collections import defaultdict, Counter
         import datetime as _dt
 
@@ -128,8 +130,13 @@ def create_app() -> FastAPI:
             <html><body><p>No surveys found.</p></body></html>
             """
 
-        plain_parts: list[str] = []
         html_sections: list[str] = []
+
+        # Aggregates for building participant-grouped plain text
+        specs: dict[str, object] = {}
+        all_runs: list[SurveyRun] = []
+        answers_by_run: dict[int, list[SurveyAnswer]] = defaultdict(list)
+        all_user_ids: set[int] = set()
 
         with get_session() as session:
             for sf in survey_files:
@@ -137,13 +144,12 @@ def create_app() -> FastAPI:
                 try:
                     spec = load_survey(key)
                 except Exception as e:  # noqa: BLE001
-                    # Skip broken survey files but show a note in output
-                    plain_parts.append(f"Survey file error: {key}.json — {e!s}")
                     html_sections.append(
                         f"<section><h2>{key}</h2><p style='color:#b00;'>Survey file error: {e!s}</p></section>"
                     )
                     continue
-                # runs and users
+                specs[key] = spec
+                # runs and answers for this survey
                 runs = (
                     session.query(SurveyRun)
                     .filter((SurveyRun.survey_key == key) & (SurveyRun.completed_at.is_not(None)))
@@ -158,36 +164,28 @@ def create_app() -> FastAPI:
                     )
                 else:
                     answers = []
-                user_ids = {r.user_id for r in runs}
-                if user_ids:
-                    users = {u.id: u for u in session.query(User).filter(User.id.in_(user_ids)).all()}
-                else:
-                    users = {}
+                for a in answers:
+                    if a.run_id is not None:
+                        answers_by_run[a.run_id].append(a)
+                all_runs.extend(runs)
+                all_user_ids.update(r.user_id for r in runs)
 
-                # group by question
+                # HTML breakdown per survey (kept question-grouped for readability)
                 by_q: dict[str, list[SurveyAnswer]] = defaultdict(list)
                 for a in answers:
                     by_q[a.question_id].append(a)
-
-                # build plain text and HTML
                 participants = len({r.user_id for r in runs})
-                plain_parts.append(f"Survey: {spec.title} (key: {spec.key})")
-                plain_parts.append(f"Participants (completed): {participants}")
-
                 html_rows: list[str] = [f"<h2>{spec.title}</h2>", f"<p class='muted'>Participants (completed): {participants}</p>"]
-
                 for q in spec.questions:
                     q_answers = by_q.get(q.id, [])
                     if q.type == "choice":
                         counts = Counter([a.answer_choice or "" for a in q_answers])
                         label_by_value = {c.value: c.label for c in (q.choices or [])}
-                        total = sum(counts.values()) or 1
-                        plain_parts.append(f"- Q: {q.prompt}")
                         rows = []
+                        total = sum(counts.values()) or 1
                         for value, label in label_by_value.items():
                             n = counts.get(value, 0)
                             pct = (n * 100.0) / total if total else 0.0
-                            plain_parts.append(f"  - {label} ({value}): {n} ({pct:.1f}%)")
                             rows.append(
                                 f"<tr><td>{label}</td><td style='text-align:right;'>{n}</td><td style='text-align:right;'>{pct:.1f}%</td></tr>"
                             )
@@ -197,24 +195,67 @@ def create_app() -> FastAPI:
                         )
                         html_rows.append(f"<section><h3>{q.prompt}</h3>{table}</section>")
                     else:
-                        plain_parts.append(f"- Q: {q.prompt}")
-                        plain_parts.append("  - Text responses:")
-                        # sort by created_at
-                        q_answers_sorted = sorted(q_answers, key=lambda a: a.created_at)
                         items = []
-                        for a in q_answers_sorted:
-                            run = next((r for r in runs if r.id == a.run_id), None)
-                            user = users.get(run.user_id) if run else None
-                            name = " ".join(filter(None, [getattr(user, "first_name", None), getattr(user, "last_name", None)])) or (getattr(user, "username", None) or f"user#{getattr(user, 'id', '?')}")
-                            txt = (a.answer_text or "").replace("\n", " ").strip()
-                            if txt:
-                                plain_parts.append(f"    - {name}: {txt}")
-                                items.append(f"<li><b>{name}:</b> {(a.answer_text or '').replace('<','&lt;')}</li>")
+                        q_answers_sorted = sorted(q_answers, key=lambda a: a.created_at)
+                        # Lookup users lazily below; here just show list without names to keep perf
+                        for a in q_answers_sorted[-200:]:
+                            items.append(f"<li>{(a.answer_text or '').replace('<','&lt;')}</li>")
                         ul = f"<ul>{''.join(items) if items else '<li>—</li>'}</ul>"
                         html_rows.append(f"<section><h3>{q.prompt}</h3>{ul}</section>")
-
-                plain_parts.append("")
                 html_sections.append("\n".join(html_rows))
+
+            # Fetch all users for runs once
+            users = {u.id: u for u in session.query(User).filter(User.id.in_(all_user_ids)).all()} if all_user_ids else {}
+
+        # Build participant-grouped plain text
+        # Order users by name (fallback id)
+        def user_display(u: User) -> str:
+            name = " ".join(filter(None, [u.first_name, u.last_name]))
+            if name:
+                return name
+            if u.username:
+                return u.username
+            return f"user#{u.id}"
+
+        # Build mapping of questions for quick label lookup
+        qmap: dict[str, dict[str, object]] = {}
+        for key, spec in specs.items():
+            qmap[key] = {q.id: q for q in spec.questions}
+
+        # runs per user sorted by created_at
+        runs_by_user: dict[int, list[SurveyRun]] = defaultdict(list)
+        for r in all_runs:
+            runs_by_user[r.user_id].append(r)
+        for uid in runs_by_user:
+            runs_by_user[uid].sort(key=lambda r: r.created_at)
+
+        plain_parts: list[str] = []
+        # Sort users by display name
+        ordered_user_ids = sorted(all_user_ids, key=lambda uid: user_display(users.get(uid)) if users.get(uid) else str(uid))
+        for uid in ordered_user_ids:
+            u = users.get(uid)
+            if not u:
+                continue
+            plain_parts.append(user_display(u))
+            for run in runs_by_user.get(uid, []):
+                spec = specs.get(run.survey_key)
+                if not spec:
+                    continue
+                answers_list = answers_by_run.get(run.id or -1, [])
+                ans_by_q = {a.question_id: a for a in answers_list}
+                for q in spec.questions:
+                    a = ans_by_q.get(q.id)
+                    if not a:
+                        continue
+                    if q.type == "choice":
+                        label_by_value = {c.value: c.label for c in (q.choices or [])}
+                        val = a.answer_choice or ""
+                        out = label_by_value.get(val, val)
+                    else:
+                        out = (a.answer_text or "").replace("\n", " ").strip()
+                    if out:
+                        plain_parts.append(f"{q.prompt}: {out}")
+            plain_parts.append("")
 
         plain_text = "\n".join(plain_parts)
         escaped = plain_text.replace("<", "&lt;")
