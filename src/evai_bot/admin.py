@@ -399,23 +399,60 @@ def create_app() -> FastAPI:
     # -------------------- Polls admin and Live view --------------------
     @app.get("/admin/polls", response_class=HTMLResponse)
     def polls_admin(_: Auth) -> str:  # type: ignore[no-untyped-def]
-        options = []
+        # Collect all surveys and their choice questions
+        entries: list[tuple[str, object]] = []
         for p in sorted(Path(SURVEYS_DIR).glob("*.json"), key=lambda x: x.stem):
             key = p.stem
             try:
                 spec = load_survey(key)
                 if any(q.type == "choice" for q in spec.questions):
-                    options.append((key, spec.title))
+                    entries.append((key, spec))
             except Exception:
                 continue
         with get_session() as session:
             active = session.query(LivePollState).order_by(LivePollState.created_at.desc()).first()
         active_html = (
-            f"<p><b>Active:</b> {active.survey_key} / {active.question_id}</p>" if active else "<p><b>Active:</b> —</p>"
+            f"<p><b>Активен:</b> {active.survey_key} / {active.question_id}</p>" if active else "<p><b>Активен:</b> —</p>"
         )
+        # Simple select (пускай останется как резервный способ)
         opts_html = "".join(
-            f"<option value='{key}'>{title} ({key})</option>" for key, title in options
+            f"<option value='{key}'>{spec.title} ({key})</option>" for key, spec in entries
         ) or "<option value='' disabled>—</option>"
+
+        # Quick actions list
+        qa_blocks: list[str] = []
+        for key, spec in entries:
+            rows: list[str] = []
+            for q in spec.questions:
+                if q.type != "choice":
+                    continue
+                is_active = active and active.survey_key == key and active.question_id == q.id
+                badge = " <span style='color:#22c55e'>(active)</span>" if is_active else ""
+                rows.append(
+                    f"<div style='border:1px solid #eee; padding:8px; margin:6px 0;'>"
+                    f"<div style='margin-bottom:6px'><b>{q.prompt}</b>{badge}</div>"
+                    f"<form style='display:inline-block;margin-right:8px' method='post' action='/admin/polls/start'>"
+                    f"  <input type='hidden' name='survey_key' value='{key}' />"
+                    f"  <input type='hidden' name='question_id' value='{q.id}' />"
+                    f"  <button type='submit'>Start</button>"
+                    f"</form>"
+                    f"<form style='display:inline-block;margin-right:8px' method='post' action='/admin/polls/broadcast'>"
+                    f"  <input type='hidden' name='survey_key' value='{key}' />"
+                    f"  <input type='hidden' name='question_id' value='{q.id}' />"
+                    f"  <button type='submit'>Broadcast</button>"
+                    f"</form>"
+                    f"<a href='/live/survey/{key}' target='_blank'>Viewer</a>"
+                    f"</div>"
+                )
+            qa_blocks.append(
+                f"<section style='margin:12px 0 18px;'>"
+                f"  <h3 style='margin:0 0 6px;'>{spec.title} <small style='color:#666'>({key})</small></h3>"
+                f"  {''.join(rows) if rows else '<p style=\"color:#666\">Нет вопросов с вариантами</p>'}"
+                f"</section>"
+            )
+
+        quick_html = "".join(qa_blocks)
+
         return f"""
         <html>
           <head>
@@ -429,6 +466,7 @@ def create_app() -> FastAPI:
               small {{ color:#666; }}
               nav a {{ margin-right: 12px; }}
               code {{ background:#f6f6f6; padding:2px 4px; }}
+              h3 small {{ font-weight: normal; }}
             </style>
           </head>
           <body>
@@ -440,6 +478,8 @@ def create_app() -> FastAPI:
             </nav>
             <h1>Live Polls</h1>
             {active_html}
+            <h2>Быстрые действия</h2>
+            {quick_html}
             <form method='post' action='/admin/polls/start'>
               <h2>Start Poll</h2>
               <label>Survey key
