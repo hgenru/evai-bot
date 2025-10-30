@@ -91,7 +91,7 @@ def create_app() -> FastAPI:
             <nav>
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
-              <a href='/admin/polls'>Polls</a>
+              <a href='/admin/polls'>Опросы</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Users</h1>
@@ -279,7 +279,7 @@ def create_app() -> FastAPI:
             <nav>
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
-              <a href='/admin/polls'>Polls</a>
+              <a href='/admin/polls'>Опросы</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Survey Results — Registration</h1>
@@ -435,7 +435,7 @@ def create_app() -> FastAPI:
             <nav>
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
-              <a href='/admin/polls'>Polls</a>
+              <a href='/admin/polls'>Опросы</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Live Polls</h1>
@@ -659,7 +659,7 @@ def create_app() -> FastAPI:
             <nav>
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
-              <a href='/admin/polls'>Polls</a>
+              <a href='/admin/polls'>Опросы</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             
