@@ -118,16 +118,18 @@ def create_app() -> FastAPI:
 
     @app.get("/admin/surveys", response_class=HTMLResponse)
     def survey_all_results(_: Auth) -> str:  # type: ignore[no-untyped-def]
-        """Display results for all surveys on a single page with a copy-all button.
+        """Display results for the Registration survey with a copy-all button.
         Readable text is grouped by participants: one block per user with Q: A lines.
         """
         from collections import defaultdict, Counter
         import datetime as _dt
 
-        survey_files = sorted((p for p in Path(SURVEYS_DIR).glob("*.json")), key=lambda p: p.stem)
+        # Only the registration survey is displayed on this page
+        reg_path = Path(SURVEYS_DIR) / "registration.json"
+        survey_files = [reg_path] if reg_path.exists() else []
         if not survey_files:
             return """
-            <html><body><p>No surveys found.</p></body></html>
+            <html><body><p>Registration survey not found.</p></body></html>
             """
 
         html_sections: list[str] = []
@@ -264,7 +266,7 @@ def create_app() -> FastAPI:
         <html>
           <head>
             <meta charset='utf-8' />
-            <title>Survey Results — All</title>
+            <title>Survey Results — Registration</title>
             <style>
               body {{ font-family: system-ui, sans-serif; padding: 20px; max-width: 1100px; }}
               table {{ border-collapse: collapse; width: 100%; margin: 10px 0 20px; }}
@@ -283,7 +285,7 @@ def create_app() -> FastAPI:
               <a href='/admin/surveys'>Survey Results</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
-            <h1>Survey Results — All</h1>
+            <h1>Survey Results — Registration</h1>
             <p class='muted'>Generated at: {generated_at}</p>
             <div class='controls'>
               <button onclick="copyAll()">Copy all</button>
