@@ -90,7 +90,7 @@ def create_app() -> FastAPI:
           <body>
             <nav>
               <a href='/admin/users'>Users</a>
-              <a href='/admin/surveys'>Survey Results</a>
+              <a href='/admin/surveys'>Результаты регистрации</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Users</h1>
@@ -197,13 +197,8 @@ def create_app() -> FastAPI:
                         )
                         html_rows.append(f"<section><h3>{q.prompt}</h3>{table}</section>")
                     else:
-                        items = []
-                        q_answers_sorted = sorted(q_answers, key=lambda a: a.created_at)
-                        # Lookup users lazily below; here just show list without names to keep perf
-                        for a in q_answers_sorted[-200:]:
-                            items.append(f"<li>{(a.answer_text or '').replace('<','&lt;')}</li>")
-                        ul = f"<ul>{''.join(items) if items else '<li>—</li>'}</ul>"
-                        html_rows.append(f"<section><h3>{q.prompt}</h3>{ul}</section>")
+                        # Skip free-text answers in breakdown to keep the page compact.
+                        continue
                 html_sections.append("\n".join(html_rows))
 
             # Fetch all users for runs once
@@ -282,7 +277,7 @@ def create_app() -> FastAPI:
           <body>
             <nav>
               <a href='/admin/users'>Users</a>
-              <a href='/admin/surveys'>Survey Results</a>
+              <a href='/admin/surveys'>Результаты регистрации</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Survey Results — Registration</h1>
