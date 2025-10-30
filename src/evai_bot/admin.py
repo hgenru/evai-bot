@@ -412,15 +412,14 @@ def create_app() -> FastAPI:
                     entries.append((key, spec))
             except Exception:
                 continue
+        # Build latest-start map per (survey_key, question_id)
+        latest_started: dict[tuple[str, str], str] = {}
         with get_session() as session:
-            active = session.query(LivePollState).order_by(LivePollState.created_at.desc()).first()
-        active_html = (
-            f"<p><b>Активен:</b> {active.survey_key} / {active.question_id}</p>" if active else "<p><b>Активен:</b> —</p>"
-        )
-        # Simple select (пускай останется как резервный способ)
-        opts_html = "".join(
-            f"<option value='{key}'>{spec.title} ({key})</option>" for key, spec in entries
-        ) or "<option value='' disabled>—</option>"
+            for st in session.query(LivePollState).all():
+                k = (st.survey_key, st.question_id)
+                ts = getattr(st, "created_at", None)
+                if k not in latest_started or (ts and str(ts) > latest_started[k]):
+                    latest_started[k] = str(ts)
 
         # Quick actions list
         qa_blocks: list[str] = []
@@ -429,36 +428,32 @@ def create_app() -> FastAPI:
             for q in spec.questions:
                 if q.type != "choice":
                     continue
-                is_active = active and active.survey_key == key and active.question_id == q.id
-                badge = " <span style='color:#22c55e'>(active)</span>" if is_active else ""
+                started_ts = latest_started.get((key, q.id))
+                status_html = (
+                    f"<span class='muted'>Статус: <b style='color:#22c55e'>запущен</b> в {started_ts}</span>"
+                    if started_ts
+                    else "<span class='muted'>Статус: не запущен</span>"
+                )
+                preview = f"{spec.title}\n\n{q.prompt}"
                 rows.append(
-                    f"<div style='border:1px solid #eee; padding:8px; margin:6px 0;'>"
-                    f"<div style='margin-bottom:6px'><b>{q.prompt}</b>{badge}</div>"
-                    f"<form style='display:inline-block;margin-right:8px' method='post' action='/admin/polls/start'>"
-                    f"  <input type='hidden' name='survey_key' value='{key}' />"
-                    f"  <input type='hidden' name='question_id' value='{q.id}' />"
-                    f"  <button type='submit'>Start</button>"
-                    f"</form>"
-                    f"<form style='display:inline-block;margin-right:8px' method='post' action='/admin/polls/broadcast'>"
-                    f"  <input type='hidden' name='survey_key' value='{key}' />"
-                    f"  <input type='hidden' name='question_id' value='{q.id}' />"
-                    f"  <button type='submit'>Broadcast</button>"
-                    f"</form>"
-                    f"<a href='/live/survey/{key}' target='_blank'>Viewer</a>"
+                    f"<div style='border:1px solid #eee; padding:10px; margin:10px 0;'>"
+                    f"<div style='margin-bottom:6px'><b>Вопрос:</b> &laquo;{q.prompt}&raquo;</div>"
+                    f"<div style='margin-bottom:8px'>{status_html}</div>"
+                    f"<div><div class='muted' style='margin-bottom:4px'>Текст:</div><pre style='margin:0; padding:8px; background:#fafafa; border:1px solid #eee; white-space:pre-wrap;'>{preview}</pre></div>"
+                    f"<div style='margin-top:8px'>"
+                    f"  <form style='display:inline-block;margin-right:8px' method='post' action='/admin/polls/start'>"
+                    f"    <input type='hidden' name='survey_key' value='{key}' />"
+                    f"    <input type='hidden' name='question_id' value='{q.id}' />"
+                    f"    <button type='submit'>Старт</button>"
+                    f"  </form>"
+                    f"  <a href='/live/survey/{key}?q={q.id}' target='_blank'>Viewer</a>"
+                    f"</div>"
                     f"</div>"
                 )
-            # Survey-level status line
-            if active and active.survey_key == key:
-                status_html = (
-                    f"<p class='muted' style='margin:4px 0 8px;'>Статус: <b style='color:#22c55e'>активен</b> (вопрос <code>{active.question_id}</code>)</p>"
-                )
-            else:
-                status_html = "<p class='muted' style='margin:4px 0 8px;'>Статус: не активен</p>"
             qa_blocks.append(
                 (
                     f"<section style='margin:12px 0 18px;'>"
                     f"  <h3 style='margin:0 0 6px;'>{spec.title} <small style='color:#666'>({key})</small></h3>"
-                    + status_html
                     + ("".join(rows) if rows else "<p style='color:#666'>Нет вопросов с вариантами</p>")
                     + f"</section>"
                 )
@@ -490,36 +485,8 @@ def create_app() -> FastAPI:
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Live Polls</h1>
-            {active_html}
-            <h2>Быстрые действия</h2>
+            <h2>Опросы</h2>
             {quick_html}
-            <form method='post' action='/admin/polls/start'>
-              <h2>Start Poll</h2>
-              <label>Survey key
-                <select name='survey_key'>{opts_html}</select>
-              </label>
-              <label>Question ID (from JSON)
-                <input type='text' name='question_id' placeholder='e.g. choice_1' />
-              </label>
-              <button type='submit'>Start</button>
-            </form>
-            <form method='post' action='/admin/polls/stop'>
-              <h2>Stop Active</h2>
-              <button type='submit'>Stop</button>
-            </form>
-            <form method='post' action='/admin/polls/broadcast'>
-              <h2>Broadcast To Registered Users</h2>
-              <label>Survey key
-                <input type='text' name='survey_key' placeholder='must match JSON file key' />
-              </label>
-              <label>Question ID
-                <input type='text' name='question_id' />
-              </label>
-              <button type='submit'>Send</button>
-              <p><small>Uses Telegram HTTP API per user; may take time.</small></p>
-            </form>
-            <h2>Viewer Link</h2>
-            <p>Open in OBS: <code>/live/survey/&lt;survey_key&gt;</code></p>
           </body>
         </html>
         """
@@ -618,7 +585,7 @@ def create_app() -> FastAPI:
               img {{ max-height: 400px; border-radius: 8px; }}
               h1 {{ font-size: 48px; margin: 0 0 12px; }}
               .left {{ flex: 0 0 auto; }}
-              .right {{ flex: 1 1 auto; }}
+              .right {{ flex: 1 1 auto; min-width: 0; min-height: 0; }}
             </style>
           </head>
           <body>
@@ -626,47 +593,28 @@ def create_app() -> FastAPI:
               <div class='left'><img id='pic' style='display:none' /></div>
               <div class='right'>
                 <h1>{title}</h1>
-                <canvas id='chart'></canvas>
+                <div id='chartWrap' style='position:relative; width:100%; height:60vh;'>
+                  <canvas id='chart' style='width:100%; height:100%;'></canvas>
+                </div>
               </div>
             </div>
             <script>
               const ctx = document.getElementById('chart').getContext('2d');
               let chart;
-              async function fetchData() {{
-                const r = await fetch('/live/api/survey/{survey_key}');
-                if (!r.ok) return;
-                const data = await r.json();
-                // update image if provided
-                const img = document.getElementById('pic');
-                if (data.image_url) {{ img.src = data.image_url; img.style.display = 'block'; }} else {{ img.style.display = 'none'; }}
-                const cfg = {{
-                  type: 'bar',
-                  data: {{
-                    labels: data.labels,
-                    datasets: [{{ label: 'Votes', data: data.counts, backgroundColor: (data.colors || '#3b82f6'), borderColor: (data.colors || '#3b82f6'), borderWidth: 1 }}]
-                  }},
-                  options: {{
-                    responsive: true,
-                    plugins: {{ legend: {{ display: false }} }},
-                    scales: {{
-                      x: {{ ticks: {{ color: '#fff', font: {{ size: 22 }} }}, grid: {{ color: 'rgba(255,255,255,0.08)' }} }},
-                      y: {{ display: false }}
-                    }}
-                  }}
-                }};
-                // draw values on top of bars (lightweight plugin)
+              // register plugin once
+              if (!window._valuePluginRegistered) {{
                 const valuePlugin = {{
                   id: 'valuePlugin',
                   afterDatasetsDraw(chart, args, pluginOptions) {{
                     const {{ctx}} = chart;
                     ctx.save();
                     ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 22px system-ui';
+                    ctx.font = 'bold 28px system-ui';
                     const meta = chart.getDatasetMeta(0);
                     meta.data.forEach((bar, i) => {{
                       const val = chart.data.datasets[0].data[i];
-                      if (val == null) return;
-                      const props = bar.getProps(['x','y','base','width','height'], true);
+                      if (val == null || val === 0) return;
+                      const props = bar.getProps(['x','y','base'], true);
                       const yMid = (props.y + props.base) / 2;
                       ctx.textAlign = 'center';
                       ctx.textBaseline = 'middle';
@@ -675,8 +623,37 @@ def create_app() -> FastAPI:
                     ctx.restore();
                   }}
                 }};
-                if (!chart) {{ chart = new Chart(ctx, cfg); chart.config.plugins.push(valuePlugin); }}
-                else {{ chart.data.labels = data.labels; chart.data.datasets[0].data = data.counts; chart.update(); }}
+                Chart.register(valuePlugin);
+                window._valuePluginRegistered = true;
+              }}
+
+              async function fetchData() {{
+                const r = await fetch('/live/api/survey/{survey_key}' + window.location.search);
+                if (!r.ok) return;
+                const data = await r.json();
+                // update image if provided
+                const img = document.getElementById('pic');
+                if (data.image_url) {{ img.src = data.image_url; img.style.display = 'block'; }} else {{ img.style.display = 'none'; }}
+                // labels without counts — counts are drawn inside bars
+                const cfg = {{
+                  type: 'bar',
+                  data: {{
+                    labels: (data.labels || []),
+                    datasets: [{{ label: 'Votes', data: data.counts, backgroundColor: (data.colors || '#3b82f6'), borderColor: (data.colors || '#3b82f6'), borderWidth: 1, borderRadius: 10 }}]
+                  }},
+                  options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {{ padding: {{ left: 24, right: 24, top: 16, bottom: 16 }} }},
+                    plugins: {{ legend: {{ display: false }} }},
+                    scales: {{
+                      x: {{ ticks: {{ color: '#fff', font: {{ size: 30 }} }}, grid: {{ color: 'rgba(255,255,255,0.08)' }} }},
+                      y: {{ display: false }}
+                    }}
+                  }}
+                }};
+                if (!chart) {{ chart = new Chart(ctx, cfg); }}
+                else {{ chart.data.labels = (data.labels || []); chart.data.datasets[0].data = data.counts; chart.update(); }}
               }}
               fetchData();
               setInterval(fetchData, 2000);
@@ -686,32 +663,37 @@ def create_app() -> FastAPI:
         """
 
     @app.get("/live/api/survey/{survey_key}", response_class=JSONResponse)
-    def live_api(survey_key: str):  # type: ignore[no-untyped-def]
+    def live_api(survey_key: str, q: Optional[str] = Query(default=None)):  # type: ignore[no-untyped-def]
         try:
             spec = load_survey(survey_key)
         except Exception:
             return JSONResponse({"labels": [], "counts": []})
-        # default: first choice question
-        q = next((qq for qq in spec.questions if qq.type == "choice"), None)
-        with get_session() as session:
-            state = (
-                session.query(LivePollState)
-                .filter(LivePollState.survey_key == survey_key)
-                .order_by(LivePollState.created_at.desc())
-                .first()
-            )
-        if state and state.question_id:
-            q = next((qq for qq in spec.questions if qq.id == state.question_id and qq.type == "choice"), q)
-        if not q or not q.choices:
+        # choose question: explicit q param -> latest state -> first
+        question = None
+        if q:
+            question = next((qq for qq in spec.questions if qq.id == q and qq.type == "choice"), None)
+        if not question:
+            with get_session() as session:
+                state = (
+                    session.query(LivePollState)
+                    .filter(LivePollState.survey_key == survey_key)
+                    .order_by(LivePollState.created_at.desc())
+                    .first()
+                )
+            if state and state.question_id:
+                question = next((qq for qq in spec.questions if qq.id == state.question_id and qq.type == "choice"), None)
+        if not question:
+            question = next((qq for qq in spec.questions if qq.type == "choice"), None)
+        if not question or not question.choices:
             return JSONResponse({"labels": [], "counts": []})
         with get_session() as session:
             votes = session.query(LivePollVote).filter(
-                (LivePollVote.survey_key == survey_key) & (LivePollVote.question_id == q.id)
+                (LivePollVote.survey_key == survey_key) & (LivePollVote.question_id == question.id)
             ).all()
         from collections import Counter
         counts = Counter([v.value for v in votes])
-        labels = [c.label for c in (q.choices or [])]
-        series = [counts.get(c.value, 0) for c in (q.choices or [])]
+        labels = [c.label for c in (question.choices or [])]
+        series = [counts.get(c.value, 0) for c in (question.choices or [])]
         # Colors per choice if provided in JSON; fallback by value/common names
         def _fallback_color(val: str, idx: int) -> str:
             m = {
@@ -721,16 +703,16 @@ def create_app() -> FastAPI:
                 "yellow": "#eab308",
             }
             return m.get(val.lower(), ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"][idx % 5])
-        colors = [getattr(c, "color", None) or _fallback_color(c.value, i) for i, c in enumerate(q.choices or [])]
+        colors = [getattr(c, "color", None) or _fallback_color(c.value, i) for i, c in enumerate(question.choices or [])]
         # Choose image: prefer question.image_url, else survey.image_url
-        q_image = getattr(q, "image_url", None)
+        q_image = getattr(question, "image_url", None)
         image_url = q_image or getattr(spec, "image_url", None)
         return JSONResponse({
             "labels": labels,
             "counts": series,
             "colors": colors,
             "title": spec.title,
-            "prompt": q.prompt,
+            "prompt": question.prompt,
             "image_url": image_url or "",
         })
 
