@@ -446,7 +446,7 @@ def create_app() -> FastAPI:
                     f"    <input type='hidden' name='question_id' value='{q.id}' />"
                     f"    <button type='submit'>Старт</button>"
                     f"  </form>"
-                    f"  <a href='/live/survey/{key}?q={q.id}' target='_blank'>Viewer</a>"
+                    f"  <a href='/live/survey/{key}' target='_blank'>Viewer</a>"
                     f"</div>"
                     f"</div>"
                 )
@@ -580,12 +580,15 @@ def create_app() -> FastAPI:
             <title>{title}</title>
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
             <style>
+              html, body {{ height: 100%; }}
               body {{ margin: 0; background: #000; color: #fff; font-family: system-ui, sans-serif; }}
-              .wrap {{ display:flex; align-items:center; gap:24px; padding: 24px; }}
-              img {{ max-height: 400px; border-radius: 8px; }}
+              .wrap {{ display:flex; align-items:center; gap:24px; padding: 24px; height: 100vh; box-sizing: border-box; }}
+              img {{ max-height: 100%; border-radius: 8px; }}
               h1 {{ font-size: 48px; margin: 0 0 12px; }}
               .left {{ flex: 0 0 auto; }}
-              .right {{ flex: 1 1 auto; min-width: 0; min-height: 0; }}
+              .right {{ flex: 1 1 auto; min-width: 0; min-height: 0; display:flex; flex-direction:column; }}
+              #chartWrap { position: relative; width: 100%; flex: 1 1 auto; min-height: 0; }
+              #chart { width: 100%; height: 100%; }
             </style>
           </head>
           <body>
@@ -593,8 +596,8 @@ def create_app() -> FastAPI:
               <div class='left'><img id='pic' style='display:none' /></div>
               <div class='right'>
                 <h1>{title}</h1>
-                <div id='chartWrap' style='position:relative; width:100%; height:60vh;'>
-                  <canvas id='chart' style='width:100%; height:100%;'></canvas>
+                <div id='chartWrap'>
+                  <canvas id='chart'></canvas>
                 </div>
               </div>
             </div>
@@ -628,13 +631,14 @@ def create_app() -> FastAPI:
               }}
 
               async function fetchData() {{
-                const r = await fetch('/live/api/survey/{survey_key}' + window.location.search);
+                const r = await fetch('/live/api/survey/{survey_key}');
                 if (!r.ok) return;
                 const data = await r.json();
                 // update image if provided
                 const img = document.getElementById('pic');
                 if (data.image_url) {{ img.src = data.image_url; img.style.display = 'block'; }} else {{ img.style.display = 'none'; }}
                 // labels without counts — counts are drawn inside bars
+                const many = (data.labels || []).length > 6;
                 const many = (data.labels || []).length > 6;
                 const cfg = {{
                   type: 'bar',
@@ -664,25 +668,22 @@ def create_app() -> FastAPI:
         """
 
     @app.get("/live/api/survey/{survey_key}", response_class=JSONResponse)
-    def live_api(survey_key: str, q: Optional[str] = Query(default=None)):  # type: ignore[no-untyped-def]
+    def live_api(survey_key: str):  # type: ignore[no-untyped-def]
         try:
             spec = load_survey(survey_key)
         except Exception:
             return JSONResponse({"labels": [], "counts": []})
-        # choose question: explicit q param -> latest state -> first
+        # choose question: latest state -> first
         question = None
-        if q:
-            question = next((qq for qq in spec.questions if qq.id == q and qq.type == "choice"), None)
-        if not question:
-            with get_session() as session:
-                state = (
-                    session.query(LivePollState)
-                    .filter(LivePollState.survey_key == survey_key)
-                    .order_by(LivePollState.created_at.desc())
-                    .first()
-                )
-            if state and state.question_id:
-                question = next((qq for qq in spec.questions if qq.id == state.question_id and qq.type == "choice"), None)
+        with get_session() as session:
+            state = (
+                session.query(LivePollState)
+                .filter(LivePollState.survey_key == survey_key)
+                .order_by(LivePollState.created_at.desc())
+                .first()
+            )
+        if state and state.question_id:
+            question = next((qq for qq in spec.questions if qq.id == state.question_id and qq.type == "choice"), None)
         if not question:
             question = next((qq for qq in spec.questions if qq.type == "choice"), None)
         if not question or not question.choices:
