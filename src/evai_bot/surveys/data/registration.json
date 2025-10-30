@@ -1,28 +1,28 @@
 {
   "key": "registration",
-  "title": "D�D�D3D,�?�,�?D��+D,�? ����D��?�,D�D,D�D�",
-  "description": "D`D�D�D_D��<D� D�D_D��?D_�?�< D�D�?D�D' D�D���D�D�D_D� D�D��D�?D,D�D�D,",
+  "title": "Регистрация участника",
+  "description": "Базовые вопросы перед началом вечеринки",
   "questions": [
     {
       "id": "name",
       "type": "text",
-      "prompt": "DsD�D� �,D�D�? D�D_D����,? (D,D��? D�D� D�D�D1D'D)"
+      "prompt": "Как тебя зовут? (имя на бейдж)"
     },
     {
       "id": "role",
       "type": "choice",
-      "prompt": "DD�D� D�D�D�D,D�D�D�^�O�?�??",
+      "prompt": "Чем занимаешься?",
       "choices": [
-        { "label": "D~D�DD�D�D�? / Dev / ML", "value": "engineer" },
-        { "label": "D"D,D�D�D1D� / DY�?D_D'�Z�?D,�?D_D�D�D�D,D�", "value": "design" },
-        { "label": "DoD��?D�D�,D,D�D3 / DY�?D_D'D�DD,", "value": "marketing" },
-        { "label": "D"�?��D3D_D�", "value": "other" }
+        { "label": "Инженер / Dev / ML", "value": "engineer" },
+        { "label": "Дизайн / Продюсирование", "value": "design" },
+        { "label": "Маркетинг / Продажи", "value": "marketing" },
+        { "label": "Другое", "value": "other" }
       ]
     },
     {
       "id": "fun_fact",
       "type": "text",
-      "prompt": "D�D��?�?D�D�DD, D�D�D�D�D�D��<D1 �,D�D��, D_ �?D�D�D� (D'D��? �^���,D_D� D~D~)"
+      "prompt": "Расскажи забавный факт о себе (для шуток ИИ)"
     }
   ]
 }

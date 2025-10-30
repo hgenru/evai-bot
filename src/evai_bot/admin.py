@@ -134,7 +134,15 @@ def create_app() -> FastAPI:
         with get_session() as session:
             for sf in survey_files:
                 key = sf.stem
-                spec = load_survey(key)
+                try:
+                    spec = load_survey(key)
+                except Exception as e:  # noqa: BLE001
+                    # Skip broken survey files but show a note in output
+                    plain_parts.append(f"Survey file error: {key}.json — {e!s}")
+                    html_sections.append(
+                        f"<section><h2>{key}</h2><p style='color:#b00;'>Survey file error: {e!s}</p></section>"
+                    )
+                    continue
                 # runs and users
                 runs = (
                     session.query(SurveyRun)
