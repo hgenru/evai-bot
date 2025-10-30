@@ -498,19 +498,16 @@ def create_app() -> FastAPI:
     @app.get("/admin/messages", response_class=HTMLResponse)
     def messages_admin(status: Optional[str] = None, _: Auth = None) -> str:  # type: ignore[no-untyped-def]
         with get_session() as session:
-            latest = (
+            users = (
                 session.query(User)
                 .order_by(User.created_at.desc())
-                .limit(12)
                 .all()
             )
-        rows = "".join(
-            f"<tr><td>{u.id}</td><td>{u.tg_id}</td><td>{(u.username or '-')}</td><td>{'✓' if u.is_registered else '✗'}</td>"
-            f"<td><form method='post' action='/admin/messages/send' style='display:flex;gap:6px;align-items:center;'>"
-            f"<input type='hidden' name='user_id' value='{u.id}'/><input type='text' name='text' placeholder='Сообщение...' style='flex:1'/>"
-            f"<button type='submit'>Отправить</button></form></td></tr>"
-            for u in latest
-        ) or "<tr><td colspan='5'>—</td></tr>"
+        opts = "".join(
+            f"<option value='{u.id}'>#{u.id} — "
+            f"{(' '.join(filter(None,[u.first_name,u.last_name])) or (u.username or '-'))} — tg:{u.tg_id}</option>"
+            for u in users
+        ) or "<option disabled>—</option>"
         note = (
             f"<p style='color:#090;'>✅ {status}</p>" if status else ""
         )
@@ -565,18 +562,16 @@ def create_app() -> FastAPI:
               <button type='submit'>Отправить всем</button>
             </form>
 
-            <h2>Быстрая отправка (последние пользователи)</h2>
-            <table>
-              <thead><tr><th>ID</th><th>tg_id</th><th>username</th><th>reg</th><th>Отправить</th></tr></thead>
-              <tbody>{rows}</tbody>
-            </table>
-
             <form method='post' action='/admin/messages/send'>
               <h2>Отправить одному</h2>
+              <label>Пользователь
+                <select name='user_id'>
+                  <option value='' selected>— выбери из списка —</option>
+                  {opts}
+                </select>
+                <small>Либо укажи tg_id/username ниже, если нет в списке.</small>
+              </label>
               <div style='display:flex; gap:12px;'>
-                <label style='flex:1;'>user_id
-                  <input type='text' name='user_id' placeholder='ID в базе (опционально)' />
-                </label>
                 <label style='flex:1;'>tg_id
                   <input type='text' name='tg_id' placeholder='Telegram chat id (опционально)' />
                 </label>
