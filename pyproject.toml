@@ -3,7 +3,7 @@ name = "evai-bot"
 version = "0.1.0"
 description = "Telegram bot for Open-LLM-VTuber party: registration, surveys, scoring"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = "==3.11.*"
 license = { text = "Proprietary" }
 authors = [{ name = "OLV", email = "dev@olv.local" }]
 dependencies = [
