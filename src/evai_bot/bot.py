@@ -37,7 +37,7 @@ async def handle_start(message: Message) -> None:
         inline_keyboard=[[InlineKeyboardButton(text="Заполнить анкету", callback_data="survey:start:registration")]]
     )
     await message.answer(
-        "Привет! Добро пожаловать на EVAI party. Нажми, чтобы пройти регистрацию.",
+        "Привет! Добро пожаловать на EVAI Internal Pre‑Launch Party. Нажми, чтобы пройти регистрацию.",
         reply_markup=kb,
     )
 
