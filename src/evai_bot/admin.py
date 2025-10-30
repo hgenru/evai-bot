@@ -584,7 +584,7 @@ def create_app() -> FastAPI:
               body {{ margin: 0; background: #000; color: #fff; font-family: system-ui, sans-serif; }}
               .wrap {{ display:flex; align-items:center; gap:24px; padding: 24px; height: 100vh; box-sizing: border-box; }}
               img {{ max-height: 100%; border-radius: 8px; }}
-              h1 {{ font-size: 48px; margin: 0 0 12px; }}
+              h1 {{ font-size: 48px; margin: 0 0 12px; text-align: center; }}
               .left {{ flex: 0 0 auto; }}
               .right {{ flex: 1 1 auto; min-width: 0; min-height: 0; display:flex; flex-direction:column; }}
               #chartWrap {{ position: relative; width: 100%; flex: 1 1 auto; min-height: 0; }}
@@ -612,7 +612,7 @@ def create_app() -> FastAPI:
                     const {{ctx}} = chart;
                     ctx.save();
                     ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 28px system-ui';
+                    ctx.font = 'bold 42px system-ui';
                     const meta = chart.getDatasetMeta(0);
                     meta.data.forEach((bar, i) => {{
                       const val = chart.data.datasets[0].data[i];
