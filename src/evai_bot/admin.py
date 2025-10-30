@@ -632,14 +632,14 @@ def create_app() -> FastAPI:
                   type: 'bar',
                   data: {{
                     labels: data.labels,
-                    datasets: [{{ label: 'Votes', data: data.counts, backgroundColor: '#3b82f6' }}]
+                    datasets: [{{ label: 'Votes', data: data.counts, backgroundColor: (data.colors || '#3b82f6'), borderColor: (data.colors || '#3b82f6'), borderWidth: 1 }}]
                   }},
                   options: {{
                     responsive: true,
                     plugins: {{ legend: {{ display: false }} }},
                     scales: {{
-                      x: {{ ticks: {{ color: '#fff', font: {{ size: 22 }} }}, grid: {{ color: 'rgba(255,255,255,0.1)' }} }},
-                      y: {{ beginAtZero:true, ticks: {{ color: '#fff', precision:0, font: {{ size: 18 }} }}, grid: {{ color: 'rgba(255,255,255,0.1)' }} }}
+                      x: {{ ticks: {{ color: '#fff', font: {{ size: 22 }} }}, grid: {{ color: 'rgba(255,255,255,0.08)' }} }},
+                      y: {{ display: false }}
                     }}
                   }}
                 }};
@@ -655,8 +655,11 @@ def create_app() -> FastAPI:
                     meta.data.forEach((bar, i) => {{
                       const val = chart.data.datasets[0].data[i];
                       if (val == null) return;
+                      const props = bar.getProps(['x','y','base','width','height'], true);
+                      const yMid = (props.y + props.base) / 2;
                       ctx.textAlign = 'center';
-                      ctx.fillText(String(val), bar.x, bar.y - 6);
+                      ctx.textBaseline = 'middle';
+                      ctx.fillText(String(val), props.x, yMid);
                     }});
                     ctx.restore();
                   }}
@@ -698,10 +701,27 @@ def create_app() -> FastAPI:
         counts = Counter([v.value for v in votes])
         labels = [c.label for c in (q.choices or [])]
         series = [counts.get(c.value, 0) for c in (q.choices or [])]
+        # Colors per choice if provided in JSON; fallback by value/common names
+        def _fallback_color(val: str, idx: int) -> str:
+            m = {
+                "blue": "#3b82f6",
+                "red": "#ef4444",
+                "green": "#22c55e",
+                "yellow": "#eab308",
+            }
+            return m.get(val.lower(), ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"][idx % 5])
+        colors = [getattr(c, "color", None) or _fallback_color(c.value, i) for i, c in enumerate(q.choices or [])]
         # Choose image: prefer question.image_url, else survey.image_url
         q_image = getattr(q, "image_url", None)
         image_url = q_image or getattr(spec, "image_url", None)
-        return JSONResponse({"labels": labels, "counts": series, "title": spec.title, "prompt": q.prompt, "image_url": image_url or ""})
+        return JSONResponse({
+            "labels": labels,
+            "counts": series,
+            "colors": colors,
+            "title": spec.title,
+            "prompt": q.prompt,
+            "image_url": image_url or "",
+        })
 
     @app.get("/admin/vtuber", response_class=HTMLResponse)
     def vtuber_form(_: Auth) -> str:  # type: ignore[no-untyped-def]

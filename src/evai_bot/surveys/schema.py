@@ -11,6 +11,7 @@ QuestionType = Literal["text", "choice"]
 class ChoiceOption(BaseModel):
     label: str
     value: str
+    color: Optional[str] = None  # hex or CSS color for charts
 
 
 class QuestionSpec(BaseModel):
