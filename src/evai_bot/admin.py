@@ -705,6 +705,8 @@ def create_app() -> FastAPI:
                 for c in q.choices
             ]
         }
+        # optional image for this question/survey
+        image_url = getattr(q, "image_url", None) or getattr(spec, "image_url", None)
         sent = 0
         errors = 0
         with get_session() as session:
@@ -712,10 +714,21 @@ def create_app() -> FastAPI:
         with httpx.Client(timeout=10) as client:
             for u in users:
                 try:
-                    client.post(
-                        f"{api_base}/sendMessage",
-                        json={"chat_id": u.tg_id, "text": text, "reply_markup": kb},
-                    )
+                    if image_url:
+                        client.post(
+                            f"{api_base}/sendPhoto",
+                            json={
+                                "chat_id": u.tg_id,
+                                "photo": image_url,
+                                "caption": text,
+                                "reply_markup": kb,
+                            },
+                        )
+                    else:
+                        client.post(
+                            f"{api_base}/sendMessage",
+                            json={"chat_id": u.tg_id, "text": text, "reply_markup": kb},
+                        )
                     sent += 1
                 except Exception:
                     errors += 1

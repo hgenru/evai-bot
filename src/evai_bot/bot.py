@@ -100,6 +100,15 @@ async def present_current_question(message_or_cb: Message | CallbackQuery, run: 
                 session.add(u)
                 session.commit()
         return
+    # Determine optional image for this question/survey
+    image_url = getattr(q, "image_url", None)
+    try:
+        from .surveys.engine import load_survey
+        # spec is already passed; keep fallback if structure changes
+        spec_image = getattr(spec, "image_url", None)
+    except Exception:
+        spec_image = None
+
     if q.type == "choice" and q.choices:
         rows = [
             [
@@ -114,19 +123,31 @@ async def present_current_question(message_or_cb: Message | CallbackQuery, run: 
         text = q.prompt
         if isinstance(message_or_cb, CallbackQuery):
             # Показываем следующий вопрос новым сообщением, не затирая предыдущий
-            await message_or_cb.message.answer(text, reply_markup=kb)
+            if image_url or spec_image:
+                await message_or_cb.message.answer_photo(photo=image_url or spec_image, caption=text, reply_markup=kb)
+            else:
+                await message_or_cb.message.answer(text, reply_markup=kb)
             await message_or_cb.answer()
         else:
-            await message_or_cb.answer(text, reply_markup=kb)
+            if image_url or spec_image:
+                await message_or_cb.answer_photo(photo=image_url or spec_image, caption=text, reply_markup=kb)
+            else:
+                await message_or_cb.answer(text, reply_markup=kb)
     else:
         # text question: prompt (без дополнительной подписи)
         text = q.prompt
         if isinstance(message_or_cb, CallbackQuery):
             # Отправляем новый месседж, чтобы история вопросов сохранялась
-            await message_or_cb.message.answer(text)
+            if image_url or spec_image:
+                await message_or_cb.message.answer_photo(photo=image_url or spec_image, caption=text)
+            else:
+                await message_or_cb.message.answer(text)
             await message_or_cb.answer()
         else:
-            await message_or_cb.answer(text)
+            if image_url or spec_image:
+                await message_or_cb.answer_photo(photo=image_url or spec_image, caption=text)
+            else:
+                await message_or_cb.answer(text)
 
 
 @router.callback_query(F.data.startswith("survey:start:"))
