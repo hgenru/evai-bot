@@ -10,7 +10,8 @@ from .config import Settings
 from .db import get_session, init_db
 from .models import SurveyAnswer, SurveyRun, User
 from .vtuber_client import VtuberClient
-from .surveys.engine import load_survey
+from .surveys.engine import load_survey, SURVEYS_DIR
+from pathlib import Path
 
 
 def _auth_dependency(
@@ -89,7 +90,7 @@ def create_app() -> FastAPI:
           <body>
             <nav>
               <a href='/admin/users'>Users</a>
-              <a href='/admin/surveys/registration'>Survey Results</a>
+              <a href='/admin/surveys'>Survey Results</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Users</h1>
@@ -111,100 +112,158 @@ def create_app() -> FastAPI:
         </html>
         """
 
-    @app.get("/admin/surveys/registration", response_class=HTMLResponse)
-    def survey_registration_results(_: Auth) -> str:  # type: ignore[no-untyped-def]
-        """Aggregate and display results for the entrance survey 'registration'."""
-        survey_key = "registration"
-        spec = load_survey(survey_key)
-        # Collect completed runs for this survey
+    @app.get("/admin/surveys/registration", response_class=RedirectResponse)
+    def survey_registration_results(_: Auth):  # type: ignore[no-untyped-def]
+        return RedirectResponse(url="/admin/surveys")
+
+    @app.get("/admin/surveys", response_class=HTMLResponse)
+    def survey_all_results(_: Auth) -> str:  # type: ignore[no-untyped-def]
+        """Display results for all surveys on a single page with a copy-all button."""
+        from collections import defaultdict, Counter
+        import datetime as _dt
+
+        survey_files = sorted((p for p in Path(SURVEYS_DIR).glob("*.json")), key=lambda p: p.stem)
+        if not survey_files:
+            return """
+            <html><body><p>No surveys found.</p></body></html>
+            """
+
+        plain_parts: list[str] = []
+        html_sections: list[str] = []
+
         with get_session() as session:
-            runs = (
-                session.query(SurveyRun)
-                .filter((SurveyRun.survey_key == survey_key) & (SurveyRun.completed_at.is_not(None)))
-                .all()
-            )
-            run_ids = [r.id for r in runs if r.id is not None]
-            if run_ids:
-                answers = (
-                    session.query(SurveyAnswer)
-                    .filter(SurveyAnswer.run_id.in_(run_ids))
+            for sf in survey_files:
+                key = sf.stem
+                spec = load_survey(key)
+                # runs and users
+                runs = (
+                    session.query(SurveyRun)
+                    .filter((SurveyRun.survey_key == key) & (SurveyRun.completed_at.is_not(None)))
                     .all()
                 )
-            else:
-                answers = []
-            # map run_id -> user
-            user_ids = {r.user_id for r in runs}
-            if user_ids:
-                users = {u.id: u for u in session.query(User).filter(User.id.in_(user_ids)).all()}
-            else:
-                users = {}
+                run_ids = [r.id for r in runs if r.id is not None]
+                if run_ids:
+                    answers = (
+                        session.query(SurveyAnswer)
+                        .filter(SurveyAnswer.run_id.in_(run_ids))
+                        .all()
+                    )
+                else:
+                    answers = []
+                user_ids = {r.user_id for r in runs}
+                if user_ids:
+                    users = {u.id: u for u in session.query(User).filter(User.id.in_(user_ids)).all()}
+                else:
+                    users = {}
 
-        # Group answers by question_id
-        from collections import defaultdict, Counter
+                # group by question
+                by_q: dict[str, list[SurveyAnswer]] = defaultdict(list)
+                for a in answers:
+                    by_q[a.question_id].append(a)
 
-        by_q: dict[str, list[SurveyAnswer]] = defaultdict(list)
-        for a in answers:
-            by_q[a.question_id].append(a)
+                # build plain text and HTML
+                participants = len({r.user_id for r in runs})
+                plain_parts.append(f"Survey: {spec.title} (key: {spec.key})")
+                plain_parts.append(f"Participants (completed): {participants}")
 
-        sections: list[str] = []
-        total_participants = len({r.user_id for r in runs})
-        for q in spec.questions:
-            q_answers = by_q.get(q.id, [])
-            if q.type == "choice":
-                counts = Counter([a.answer_choice or "" for a in q_answers])
-                # value -> label map
-                label_by_value = {c.value: c.label for c in (q.choices or [])}
-                rows = []
-                total = sum(counts.values()) or 1
-                for value, label in label_by_value.items():
-                    n = counts.get(value, 0)
-                    pct = (n * 100.0) / total if total else 0.0
-                    rows.append(f"<tr><td>{label}</td><td style='text-align:right;'>{n}</td><td style='text-align:right;'>{pct:.1f}%</td></tr>")
-                table = (
-                    "<table><thead><tr><th>Option</th><th>Count</th><th>%</th></tr></thead>"
-                    f"<tbody>{''.join(rows) if rows else '<tr><td colspan=3>—</td></tr>'}</tbody></table>"
-                )
-                sections.append(f"<section><h3>{q.prompt}</h3>{table}</section>")
-            else:
-                # text answers — show last 50
-                items = []
-                # sort by created_at
-                q_answers_sorted = sorted(q_answers, key=lambda a: a.created_at)
-                for a in q_answers_sorted[-50:]:
-                    # find user by run_id
-                    run = next((r for r in runs if r.id == a.run_id), None)
-                    user = users.get(run.user_id) if run else None
-                    name = " ".join(filter(None, [getattr(user, "first_name", None), getattr(user, "last_name", None)])) or (getattr(user, "username", None) or f"user#{getattr(user, 'id', '?')}")
-                    text = (a.answer_text or "").replace("<", "&lt;")
-                    items.append(f"<li><b>{name}:</b> {text}</li>")
-                ul = f"<ul>{''.join(items) if items else '<li>—</li>'}</ul>"
-                sections.append(f"<section><h3>{q.prompt}</h3>{ul}</section>")
+                html_rows: list[str] = [f"<h2>{spec.title}</h2>", f"<p class='muted'>Participants (completed): {participants}</p>"]
 
-        sections_html = "\n".join(sections)
+                for q in spec.questions:
+                    q_answers = by_q.get(q.id, [])
+                    if q.type == "choice":
+                        counts = Counter([a.answer_choice or "" for a in q_answers])
+                        label_by_value = {c.value: c.label for c in (q.choices or [])}
+                        total = sum(counts.values()) or 1
+                        plain_parts.append(f"- Q: {q.prompt}")
+                        rows = []
+                        for value, label in label_by_value.items():
+                            n = counts.get(value, 0)
+                            pct = (n * 100.0) / total if total else 0.0
+                            plain_parts.append(f"  - {label} ({value}): {n} ({pct:.1f}%)")
+                            rows.append(
+                                f"<tr><td>{label}</td><td style='text-align:right;'>{n}</td><td style='text-align:right;'>{pct:.1f}%</td></tr>"
+                            )
+                        table = (
+                            "<table><thead><tr><th>Option</th><th>Count</th><th>%</th></tr></thead>"
+                            f"<tbody>{''.join(rows) if rows else '<tr><td colspan=3>—</td></tr>'}</tbody></table>"
+                        )
+                        html_rows.append(f"<section><h3>{q.prompt}</h3>{table}</section>")
+                    else:
+                        plain_parts.append(f"- Q: {q.prompt}")
+                        plain_parts.append("  - Text responses:")
+                        # sort by created_at
+                        q_answers_sorted = sorted(q_answers, key=lambda a: a.created_at)
+                        items = []
+                        for a in q_answers_sorted:
+                            run = next((r for r in runs if r.id == a.run_id), None)
+                            user = users.get(run.user_id) if run else None
+                            name = " ".join(filter(None, [getattr(user, "first_name", None), getattr(user, "last_name", None)])) or (getattr(user, "username", None) or f"user#{getattr(user, 'id', '?')}")
+                            txt = (a.answer_text or "").replace("\n", " ").strip()
+                            if txt:
+                                plain_parts.append(f"    - {name}: {txt}")
+                                items.append(f"<li><b>{name}:</b> {(a.answer_text or '').replace('<','&lt;')}</li>")
+                        ul = f"<ul>{''.join(items) if items else '<li>—</li>'}</ul>"
+                        html_rows.append(f"<section><h3>{q.prompt}</h3>{ul}</section>")
+
+                plain_parts.append("")
+                html_sections.append("\n".join(html_rows))
+
+        plain_text = "\n".join(plain_parts)
+        escaped = plain_text.replace("<", "&lt;")
+        generated_at = _dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
         return f"""
         <html>
           <head>
             <meta charset='utf-8' />
-            <title>Survey Results — {spec.title}</title>
+            <title>Survey Results — All</title>
             <style>
-              body {{ font-family: system-ui, sans-serif; padding: 20px; max-width: 1000px; }}
+              body {{ font-family: system-ui, sans-serif; padding: 20px; max-width: 1100px; }}
               table {{ border-collapse: collapse; width: 100%; margin: 10px 0 20px; }}
               th, td {{ border: 1px solid #ddd; padding: 6px; }}
               th {{ background: #f6f6f6; text-align: left; }}
               nav a {{ margin-right: 12px; }}
               section {{ margin-bottom: 22px; }}
               .muted {{ color: #666; }}
+              .controls {{ margin: 12px 0; }}
+              pre {{ white-space: pre-wrap; background: #f9f9f9; padding: 10px; border: 1px solid #eee; }}
             </style>
           </head>
           <body>
             <nav>
               <a href='/admin/users'>Users</a>
-              <a href='/admin/surveys/registration'>Survey Results</a>
+              <a href='/admin/surveys'>Survey Results</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
-            <h1>Survey Results — {spec.title}</h1>
-            <p class='muted'>Participants (completed): {total_participants}</p>
-            {sections_html}
+            <h1>Survey Results — All</h1>
+            <p class='muted'>Generated at: {generated_at}</p>
+            <div class='controls'>
+              <button onclick="copyAll()">Copy all</button>
+              <span id='copyStatus' class='muted' style='margin-left:8px;'></span>
+            </div>
+            <h2>Readable Text</h2>
+            <pre id='readable'>{escaped}</pre>
+            <h2>Breakdown</h2>
+            {''.join(html_sections)}
+            <textarea id='copySrc' style='position:absolute;left:-9999px;top:-9999px;'>{plain_text}</textarea>
+            <script>
+              async function copyAll() {{
+                const ta = document.getElementById('copySrc');
+                ta.select();
+                ta.setSelectionRange(0, ta.value.length);
+                let ok = false;
+                try {{
+                  await navigator.clipboard.writeText(ta.value);
+                  ok = true;
+                }} catch (e) {{
+                  try {{
+                    ok = document.execCommand('copy');
+                  }} catch (e2) {{}}
+                }}
+                const s = document.getElementById('copyStatus');
+                s.textContent = ok ? 'Copied to clipboard' : 'Copy failed';
+                setTimeout(() => s.textContent = '', 2000);
+              }}
+            </script>
           </body>
         </html>
         """
@@ -309,7 +368,7 @@ def create_app() -> FastAPI:
           <body>
             <nav>
               <a href='/admin/users'>Users</a>
-              <a href='/admin/surveys/registration'>Survey Results</a>
+              <a href='/admin/surveys'>Survey Results</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             
