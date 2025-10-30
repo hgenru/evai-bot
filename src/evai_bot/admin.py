@@ -587,8 +587,8 @@ def create_app() -> FastAPI:
               h1 {{ font-size: 48px; margin: 0 0 12px; }}
               .left {{ flex: 0 0 auto; }}
               .right {{ flex: 1 1 auto; min-width: 0; min-height: 0; display:flex; flex-direction:column; }}
-              #chartWrap { position: relative; width: 100%; flex: 1 1 auto; min-height: 0; }
-              #chart { width: 100%; height: 100%; }
+              #chartWrap {{ position: relative; width: 100%; flex: 1 1 auto; min-height: 0; }}
+              #chart {{ width: 100%; height: 100%; }}
             </style>
           </head>
           <body>
@@ -638,7 +638,6 @@ def create_app() -> FastAPI:
                 const img = document.getElementById('pic');
                 if (data.image_url) {{ img.src = data.image_url; img.style.display = 'block'; }} else {{ img.style.display = 'none'; }}
                 // labels without counts — counts are drawn inside bars
-                const many = (data.labels || []).length > 6;
                 const many = (data.labels || []).length > 6;
                 const cfg = {{
                   type: 'bar',
