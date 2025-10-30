@@ -8,6 +8,7 @@
       "id": "choice_1",
       "type": "choice",
       "prompt": "Есть два стула. Какой выберешь?",
+      "image_url": "https://eva.saa.sh/bot-assets/two-stools.jpg",
       "choices": [
         { "label": "Полное прекращение работы Telegram в России", "value": "tg_shutdown", "color": "#ef4444" },
         { "label": "Приостановка работы агитационных ботов на два дня голосования", "value": "bots_pause", "color": "#3b82f6" }
