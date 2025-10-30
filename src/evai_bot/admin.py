@@ -447,7 +447,7 @@ def create_app() -> FastAPI:
             qa_blocks.append(
                 f"<section style='margin:12px 0 18px;'>"
                 f"  <h3 style='margin:0 0 6px;'>{spec.title} <small style='color:#666'>({key})</small></h3>"
-                f"  {''.join(rows) if rows else '<p style=\"color:#666\">Нет вопросов с вариантами</p>'}"
+                f"  {''.join(rows) if rows else '<p style="color:#666">Нет вопросов с вариантами</p>'}"
                 f"</section>"
             )
 
