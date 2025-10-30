@@ -10,6 +10,7 @@ from .config import Settings
 from .db import get_session, init_db
 from .models import SurveyAnswer, SurveyRun, User
 from .vtuber_client import VtuberClient
+from .surveys.engine import load_survey
 
 
 def _auth_dependency(
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
           <body>
             <nav>
               <a href='/admin/users'>Users</a>
+              <a href='/admin/surveys/registration'>Survey Results</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Users</h1>
@@ -105,6 +107,104 @@ def create_app() -> FastAPI:
                 {body}
               </tbody>
             </table>
+          </body>
+        </html>
+        """
+
+    @app.get("/admin/surveys/registration", response_class=HTMLResponse)
+    def survey_registration_results(_: Auth) -> str:  # type: ignore[no-untyped-def]
+        """Aggregate and display results for the entrance survey 'registration'."""
+        survey_key = "registration"
+        spec = load_survey(survey_key)
+        # Collect completed runs for this survey
+        with get_session() as session:
+            runs = (
+                session.query(SurveyRun)
+                .filter((SurveyRun.survey_key == survey_key) & (SurveyRun.completed_at.is_not(None)))
+                .all()
+            )
+            run_ids = [r.id for r in runs if r.id is not None]
+            if run_ids:
+                answers = (
+                    session.query(SurveyAnswer)
+                    .filter(SurveyAnswer.run_id.in_(run_ids))
+                    .all()
+                )
+            else:
+                answers = []
+            # map run_id -> user
+            user_ids = {r.user_id for r in runs}
+            if user_ids:
+                users = {u.id: u for u in session.query(User).filter(User.id.in_(user_ids)).all()}
+            else:
+                users = {}
+
+        # Group answers by question_id
+        from collections import defaultdict, Counter
+
+        by_q: dict[str, list[SurveyAnswer]] = defaultdict(list)
+        for a in answers:
+            by_q[a.question_id].append(a)
+
+        sections: list[str] = []
+        total_participants = len({r.user_id for r in runs})
+        for q in spec.questions:
+            q_answers = by_q.get(q.id, [])
+            if q.type == "choice":
+                counts = Counter([a.answer_choice or "" for a in q_answers])
+                # value -> label map
+                label_by_value = {c.value: c.label for c in (q.choices or [])}
+                rows = []
+                total = sum(counts.values()) or 1
+                for value, label in label_by_value.items():
+                    n = counts.get(value, 0)
+                    pct = (n * 100.0) / total if total else 0.0
+                    rows.append(f"<tr><td>{label}</td><td style='text-align:right;'>{n}</td><td style='text-align:right;'>{pct:.1f}%</td></tr>")
+                table = (
+                    "<table><thead><tr><th>Option</th><th>Count</th><th>%</th></tr></thead>"
+                    f"<tbody>{''.join(rows) if rows else '<tr><td colspan=3>—</td></tr>'}</tbody></table>"
+                )
+                sections.append(f"<section><h3>{q.prompt}</h3>{table}</section>")
+            else:
+                # text answers — show last 50
+                items = []
+                # sort by created_at
+                q_answers_sorted = sorted(q_answers, key=lambda a: a.created_at)
+                for a in q_answers_sorted[-50:]:
+                    # find user by run_id
+                    run = next((r for r in runs if r.id == a.run_id), None)
+                    user = users.get(run.user_id) if run else None
+                    name = " ".join(filter(None, [getattr(user, "first_name", None), getattr(user, "last_name", None)])) or (getattr(user, "username", None) or f"user#{getattr(user, 'id', '?')}")
+                    text = (a.answer_text or "").replace("<", "&lt;")
+                    items.append(f"<li><b>{name}:</b> {text}</li>")
+                ul = f"<ul>{''.join(items) if items else '<li>—</li>'}</ul>"
+                sections.append(f"<section><h3>{q.prompt}</h3>{ul}</section>")
+
+        sections_html = "\n".join(sections)
+        return f"""
+        <html>
+          <head>
+            <meta charset='utf-8' />
+            <title>Survey Results — {spec.title}</title>
+            <style>
+              body {{ font-family: system-ui, sans-serif; padding: 20px; max-width: 1000px; }}
+              table {{ border-collapse: collapse; width: 100%; margin: 10px 0 20px; }}
+              th, td {{ border: 1px solid #ddd; padding: 6px; }}
+              th {{ background: #f6f6f6; text-align: left; }}
+              nav a {{ margin-right: 12px; }}
+              section {{ margin-bottom: 22px; }}
+              .muted {{ color: #666; }}
+            </style>
+          </head>
+          <body>
+            <nav>
+              <a href='/admin/users'>Users</a>
+              <a href='/admin/surveys/registration'>Survey Results</a>
+              <a href='/admin/vtuber'>VTuber Control</a>
+            </nav>
+            <h1>Survey Results — {spec.title}</h1>
+            <p class='muted'>Participants (completed): {total_participants}</p>
+            {sections_html}
           </body>
         </html>
         """
@@ -209,8 +309,10 @@ def create_app() -> FastAPI:
           <body>
             <nav>
               <a href='/admin/users'>Users</a>
+              <a href='/admin/surveys/registration'>Survey Results</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
+            
             <h1>VTuber Direct Control</h1>
             <p><b>Configured API root:</b> {settings.vtuber_api_root}</p>
             <h2>List Sessions</h2>
@@ -442,4 +544,3 @@ async def run_admin() -> None:
     )
     server = uvicorn.Server(config)
     await server.serve()
-
