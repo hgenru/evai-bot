@@ -88,12 +88,13 @@ def create_app() -> FastAPI:
             </style>
           </head>
           <body>
-            <nav>
+             <nav>
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
               <a href='/admin/polls'>Опросы</a>
+              <a href='/admin/messages'>Сообщения</a>
               <a href='/admin/vtuber'>VTuber Control</a>
-            </nav>
+             </nav>
             <h1>Users</h1>
             <table>
               <thead>
@@ -280,6 +281,7 @@ def create_app() -> FastAPI:
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
               <a href='/admin/polls'>Опросы</a>
+              <a href='/admin/messages'>Сообщения</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Survey Results — Registration</h1>
@@ -482,6 +484,7 @@ def create_app() -> FastAPI:
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
               <a href='/admin/polls'>Опросы</a>
+              <a href='/admin/messages'>Сообщения</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Live Polls</h1>
@@ -490,6 +493,203 @@ def create_app() -> FastAPI:
           </body>
         </html>
         """
+
+    # -------------------- Messages (broadcast and direct) --------------------
+    @app.get("/admin/messages", response_class=HTMLResponse)
+    def messages_admin(status: Optional[str] = None, _: Auth = None) -> str:  # type: ignore[no-untyped-def]
+        with get_session() as session:
+            latest = (
+                session.query(User)
+                .order_by(User.created_at.desc())
+                .limit(12)
+                .all()
+            )
+        rows = "".join(
+            f"<tr><td>{u.id}</td><td>{u.tg_id}</td><td>{(u.username or '-')}</td><td>{'✓' if u.is_registered else '✗'}</td>"
+            f"<td><form method='post' action='/admin/messages/send' style='display:flex;gap:6px;align-items:center;'>"
+            f"<input type='hidden' name='user_id' value='{u.id}'/><input type='text' name='text' placeholder='Сообщение...' style='flex:1'/>"
+            f"<button type='submit'>Отправить</button></form></td></tr>"
+            for u in latest
+        ) or "<tr><td colspan='5'>—</td></tr>"
+        note = (
+            f"<p style='color:#090;'>✅ {status}</p>" if status else ""
+        )
+        return f"""
+        <html>
+          <head>
+            <meta charset='utf-8' />
+            <title>Messages</title>
+            <style>
+              body {{ font-family: system-ui, sans-serif; padding: 20px; max-width: 1000px; }}
+              form {{ margin: 12px 0; padding: 10px; border: 1px solid #ddd; }}
+              label {{ display:block; margin:6px 0; }}
+              input[type=text], textarea, select {{ width: 100%; padding: 6px; }}
+              small {{ color:#666; }}
+              nav a {{ margin-right: 12px; }}
+              table {{ border-collapse: collapse; width: 100%; }}
+              th, td {{ border:1px solid #ddd; padding:6px; }}
+              th {{ background:#f6f6f6; text-align:left; }}
+            </style>
+          </head>
+          <body>
+            <nav>
+              <a href='/admin/users'>Users</a>
+              <a href='/admin/surveys'>Результаты регистрации</a>
+              <a href='/admin/polls'>Опросы</a>
+              <a href='/admin/messages'>Сообщения</a>
+              <a href='/admin/vtuber'>VTuber Control</a>
+            </nav>
+            <h1>Сообщения</h1>
+            {note}
+            <form method='post' action='/admin/messages/broadcast'>
+              <h2>Броадкаст</h2>
+              <label>Текст
+                <textarea name='text' rows='4' placeholder='Сообщение для всех зарегистрированных'></textarea>
+              </label>
+              <div style='display:flex; gap:12px;'>
+                <label style='flex:1;'>Формат
+                  <select name='parse'>
+                    <option value='plain' selected>Без форматирования</option>
+                    <option value='HTML'>HTML</option>
+                    <option value='MarkdownV2'>MarkdownV2</option>
+                  </select>
+                </label>
+                <label style='flex:1;'>Кому
+                  <select name='scope'>
+                    <option value='registered' selected>Только зарегистрированным</option>
+                    <option value='all'>Всем пользователям</option>
+                  </select>
+                </label>
+              </div>
+              <label><input type='checkbox' name='no_preview'/> Отключить предпросмотр ссылок</label>
+              <button type='submit'>Отправить всем</button>
+            </form>
+
+            <h2>Быстрая отправка (последние пользователи)</h2>
+            <table>
+              <thead><tr><th>ID</th><th>tg_id</th><th>username</th><th>reg</th><th>Отправить</th></tr></thead>
+              <tbody>{rows}</tbody>
+            </table>
+
+            <form method='post' action='/admin/messages/send'>
+              <h2>Отправить одному</h2>
+              <div style='display:flex; gap:12px;'>
+                <label style='flex:1;'>user_id
+                  <input type='text' name='user_id' placeholder='ID в базе (опционально)' />
+                </label>
+                <label style='flex:1;'>tg_id
+                  <input type='text' name='tg_id' placeholder='Telegram chat id (опционально)' />
+                </label>
+                <label style='flex:1;'>username
+                  <input type='text' name='username' placeholder='username без @ (опционально)' />
+                </label>
+              </div>
+              <label>Текст
+                <textarea name='text' rows='3' placeholder='Привет!'></textarea>
+              </label>
+              <label>Формат
+                <select name='parse'>
+                  <option value='plain' selected>Без форматирования</option>
+                  <option value='HTML'>HTML</option>
+                  <option value='MarkdownV2'>MarkdownV2</option>
+                </select>
+              </label>
+              <label><input type='checkbox' name='no_preview'/> Отключить предпросмотр ссылок</label>
+              <button type='submit'>Отправить</button>
+            </form>
+          </body>
+        </html>
+        """
+
+    @app.post("/admin/messages/broadcast")
+    def messages_broadcast(request: Request, _: Auth):  # type: ignore[no-untyped-def]
+        import anyio
+        import httpx
+        async def _parse() -> dict[str, str]:
+            data = await request.form()
+            return {k: str(v) for k, v in data.items()}
+        data = anyio.from_thread.run(_parse)
+        text = (data.get("text") or "").strip()
+        scope = (data.get("scope") or "registered").strip()
+        parse = (data.get("parse") or "plain").strip()
+        no_preview = data.get("no_preview") is not None
+        if not text:
+            return RedirectResponse(url="/admin/messages?status=Текст%20пустой", status_code=303)
+        settings = Settings()
+        api_base = f"https://api.telegram.org/bot{settings.bot_token}"
+        with get_session() as session:
+            q = session.query(User)
+            if scope == "registered":
+                q = q.filter(User.is_registered.is_(True))
+            users = q.all()
+        payload_common: dict[str, object] = {
+            "text": text,
+            "disable_web_page_preview": no_preview,
+        }
+        if parse != "plain":
+            payload_common["parse_mode"] = parse
+        sent = 0
+        errors = 0
+        with httpx.Client(timeout=10) as client:
+            for u in users:
+                try:
+                    payload = {"chat_id": u.tg_id, **payload_common}
+                    client.post(f"{api_base}/sendMessage", json=payload)
+                    sent += 1
+                except Exception:
+                    errors += 1
+        return RedirectResponse(url=f"/admin/messages?status=Broadcast:%20sent%20{sent},%20errors%20{errors}", status_code=303)
+
+    @app.post("/admin/messages/send")
+    def messages_send(request: Request, _: Auth):  # type: ignore[no-untyped-def]
+        import anyio
+        import httpx
+        async def _parse() -> dict[str, str]:
+            data = await request.form()
+            return {k: str(v) for k, v in data.items()}
+        data = anyio.from_thread.run(_parse)
+        text = (data.get("text") or "").strip()
+        parse = (data.get("parse") or "plain").strip()
+        no_preview = data.get("no_preview") is not None
+        user_id = (data.get("user_id") or "").strip()
+        tg_id_s = (data.get("tg_id") or "").strip()
+        username = (data.get("username") or "").strip().lstrip("@")
+        if not text:
+            return RedirectResponse(url="/admin/messages?status=Текст%20пустой", status_code=303)
+        # Resolve target
+        target_tg: Optional[int] = None
+        with get_session() as session:
+            user = None
+            if user_id.isdigit():
+                user = session.get(User, int(user_id))
+            if not user and tg_id_s.isdigit():
+                from sqlmodel import select
+                user = session.exec(select(User).where(User.tg_id == int(tg_id_s))).first()
+            if not user and username:
+                from sqlmodel import select
+                user = session.exec(select(User).where(User.username == username)).first()
+            if user:
+                target_tg = user.tg_id
+        if not target_tg and tg_id_s.isdigit():
+            target_tg = int(tg_id_s)
+        if not target_tg:
+            return RedirectResponse(url="/admin/messages?status=Не%20нашёл%20пользователя", status_code=303)
+        settings = Settings()
+        api_base = f"https://api.telegram.org/bot{settings.bot_token}"
+        payload: dict[str, object] = {
+            "chat_id": target_tg,
+            "text": text,
+            "disable_web_page_preview": no_preview,
+        }
+        if parse != "plain":
+            payload["parse_mode"] = parse
+        ok = True
+        try:
+            httpx.post(f"{api_base}/sendMessage", json=payload, timeout=10)
+        except Exception:
+            ok = False
+        status = "OK" if ok else "Ошибка отправки"
+        return RedirectResponse(url=f"/admin/messages?status={status}", status_code=303)
 
     def _broadcast_poll(survey_key: str, question_id: str) -> tuple[int, int]:
         from .surveys.engine import load_survey
