@@ -55,3 +55,20 @@ class SurveyAnswer(SQLModel, table=True):
     answer_text: Optional[str] = None
     answer_choice: Optional[str] = None
 
+
+# Live poll votes (one vote per user per survey_key/question)
+class LivePollVote(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    user_id: int = Field(foreign_key="user.id")
+    survey_key: str = Field(index=True)
+    question_id: str = Field(index=True)
+    value: str
+
+
+class LivePollState(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    survey_key: str
+    question_id: str
+    image_url: Optional[str] = None

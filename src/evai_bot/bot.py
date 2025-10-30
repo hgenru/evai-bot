@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from .config import Settings
 from .db import get_session, init_db
-from .models import SurveyRun, User
+from .models import SurveyRun, User, LivePollVote
 from .surveys.engine import (
     complete_run,
     get_current_question,
@@ -149,6 +149,42 @@ async def cb_choice_answer(cb: CallbackQuery) -> None:
     await present_current_question(cb, run, spec)
 
 
+@router.callback_query(F.data.startswith("livepoll:"))
+async def cb_livepoll(cb: CallbackQuery) -> None:
+    try:
+        _, survey_key, question_id, value = cb.data.split(":", 3)
+    except Exception:
+        await cb.answer("Некорректные данные кнопки", show_alert=True)
+        return
+    tg_user = cb.from_user
+    if not tg_user:
+        await cb.answer()
+        return
+    user = get_or_create_user(
+        tg_id=tg_user.id,
+        username=tg_user.username,
+        first_name=tg_user.first_name,
+        last_name=tg_user.last_name,
+    )
+    from sqlmodel import select
+    with get_session() as session:
+        existing = session.exec(
+            select(LivePollVote).where(
+                (LivePollVote.user_id == (user.id or 0))
+                & (LivePollVote.survey_key == survey_key)
+                & (LivePollVote.question_id == question_id)
+            )
+        ).first()
+        if existing:
+            existing.value = value
+            session.add(existing)
+        else:
+            v = LivePollVote(user_id=user.id or 0, survey_key=survey_key, question_id=question_id, value=value)
+            session.add(v)
+        session.commit()
+    await cb.answer("Голос учтён")
+
+
 @router.message()
 async def on_any_message(message: Message) -> None:
     tg_user = message.from_user
@@ -187,4 +223,3 @@ async def run_bot() -> None:
     dp.include_router(router)
 
     await dp.start_polling(bot)
-

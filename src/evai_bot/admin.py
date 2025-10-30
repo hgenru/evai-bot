@@ -4,11 +4,11 @@ from typing import Annotated, Optional
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 from .config import Settings
 from .db import get_session, init_db
-from .models import SurveyAnswer, SurveyRun, User
+from .models import SurveyAnswer, SurveyRun, User, LivePollVote, LivePollState
 from .vtuber_client import VtuberClient
 from .surveys.engine import load_survey, SURVEYS_DIR
 from pathlib import Path
@@ -91,6 +91,7 @@ def create_app() -> FastAPI:
             <nav>
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
+              <a href='/admin/polls'>Polls</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Users</h1>
@@ -278,6 +279,7 @@ def create_app() -> FastAPI:
             <nav>
               <a href='/admin/users'>Users</a>
               <a href='/admin/surveys'>Результаты регистрации</a>
+              <a href='/admin/polls'>Polls</a>
               <a href='/admin/vtuber'>VTuber Control</a>
             </nav>
             <h1>Survey Results — Registration</h1>
@@ -393,6 +395,248 @@ def create_app() -> FastAPI:
           </body>
         </html>
         """
+
+    # -------------------- Polls admin and Live view --------------------
+    @app.get("/admin/polls", response_class=HTMLResponse)
+    def polls_admin(_: Auth) -> str:  # type: ignore[no-untyped-def]
+        options = []
+        for p in sorted(Path(SURVEYS_DIR).glob("*.json"), key=lambda x: x.stem):
+            key = p.stem
+            try:
+                spec = load_survey(key)
+                if any(q.type == "choice" for q in spec.questions):
+                    options.append((key, spec.title))
+            except Exception:
+                continue
+        with get_session() as session:
+            active = session.query(LivePollState).order_by(LivePollState.created_at.desc()).first()
+        active_html = (
+            f"<p><b>Active:</b> {active.survey_key} / {active.question_id}</p>" if active else "<p><b>Active:</b> —</p>"
+        )
+        opts_html = "".join(
+            f"<option value='{key}'>{title} ({key})</option>" for key, title in options
+        ) or "<option value='' disabled>—</option>"
+        return f"""
+        <html>
+          <head>
+            <meta charset='utf-8' />
+            <title>Polls Admin</title>
+            <style>
+              body {{ font-family: system-ui, sans-serif; padding: 20px; max-width: 900px; }}
+              form {{ margin: 12px 0; padding: 10px; border: 1px solid #ddd; }}
+              label {{ display:block; margin:6px 0; }}
+              input[type=text], select {{ width: 100%; padding: 6px; }}
+              small {{ color:#666; }}
+              nav a {{ margin-right: 12px; }}
+              code {{ background:#f6f6f6; padding:2px 4px; }}
+            </style>
+          </head>
+          <body>
+            <nav>
+              <a href='/admin/users'>Users</a>
+              <a href='/admin/surveys'>Результаты регистрации</a>
+              <a href='/admin/polls'>Polls</a>
+              <a href='/admin/vtuber'>VTuber Control</a>
+            </nav>
+            <h1>Live Polls</h1>
+            {active_html}
+            <form method='post' action='/admin/polls/start'>
+              <h2>Start Poll</h2>
+              <label>Survey key
+                <select name='survey_key'>{opts_html}</select>
+              </label>
+              <label>Question ID (from JSON)
+                <input type='text' name='question_id' placeholder='e.g. choice_1' />
+              </label>
+              <label>Image URL (optional)
+                <input type='text' name='image_url' placeholder='https://example/image.png' />
+              </label>
+              <button type='submit'>Start</button>
+            </form>
+            <form method='post' action='/admin/polls/stop'>
+              <h2>Stop Active</h2>
+              <button type='submit'>Stop</button>
+            </form>
+            <form method='post' action='/admin/polls/broadcast'>
+              <h2>Broadcast To Registered Users</h2>
+              <label>Survey key
+                <input type='text' name='survey_key' placeholder='must match JSON file key' />
+              </label>
+              <label>Question ID
+                <input type='text' name='question_id' />
+              </label>
+              <button type='submit'>Send</button>
+              <p><small>Uses Telegram HTTP API per user; may take time.</small></p>
+            </form>
+            <h2>Viewer Link</h2>
+            <p>Open in OBS: <code>/live/survey/&lt;survey_key&gt;</code></p>
+          </body>
+        </html>
+        """
+
+    @app.post("/admin/polls/start")
+    def polls_start(request: Request, _: Auth):  # type: ignore[no-untyped-def]
+        import anyio
+        async def _parse() -> dict[str, str]:
+            data = await request.form()
+            return {k: str(v) for k, v in data.items()}
+        data = anyio.from_thread.run(_parse)
+        survey_key = (data.get("survey_key") or "").strip()
+        question_id = (data.get("question_id") or "").strip()
+        image_url = (data.get("image_url") or "").strip() or None
+        if not survey_key or not question_id:
+            raise HTTPException(status_code=400, detail="survey_key and question_id required")
+        with get_session() as session:
+            state = LivePollState(survey_key=survey_key, question_id=question_id, image_url=image_url)
+            session.add(state)
+            session.commit()
+        return RedirectResponse(url="/admin/polls", status_code=303)
+
+    @app.post("/admin/polls/stop")
+    def polls_stop(_: Auth):  # type: ignore[no-untyped-def]
+        with get_session() as session:
+            for st in session.query(LivePollState).all():
+                session.delete(st)
+            session.commit()
+        return RedirectResponse(url="/admin/polls", status_code=303)
+
+    @app.post("/admin/polls/broadcast", response_class=HTMLResponse)
+    def polls_broadcast(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
+        import anyio
+        import httpx
+        async def _parse() -> dict[str, str]:
+            data = await request.form()
+            return {k: str(v) for k, v in data.items()}
+        data = anyio.from_thread.run(_parse)
+        survey_key = (data.get("survey_key") or "").strip()
+        question_id = (data.get("question_id") or "").strip()
+        if not survey_key or not question_id:
+            return "<html><body><p style='color:#b00;'>survey_key and question_id required</p></body></html>"
+        try:
+            spec = load_survey(survey_key)
+        except Exception as e:  # noqa: BLE001
+            return f"<html><body><p style='color:#b00;'>Spec error: {e!s}</p></body></html>"
+        q = next((qq for qq in spec.questions if qq.id == question_id and qq.type == "choice"), None)
+        if not q or not q.choices:
+            return "<html><body><p style='color:#b00;'>Question not found or not a choice question</p></body></html>"
+        settings = Settings()
+        api_base = f"https://api.telegram.org/bot{settings.bot_token}"
+        text = f"{spec.title}\n\n{q.prompt}"
+        kb = {
+            "inline_keyboard": [
+                [
+                    {"text": c.label, "callback_data": f"livepoll:{spec.key}:{q.id}:{c.value}"}
+                ]
+                for c in q.choices
+            ]
+        }
+        sent = 0
+        errors = 0
+        with get_session() as session:
+            users = session.query(User).filter(User.is_registered.is_(True)).all()
+        with httpx.Client(timeout=10) as client:
+            for u in users:
+                try:
+                    client.post(
+                        f"{api_base}/sendMessage",
+                        json={"chat_id": u.tg_id, "text": text, "reply_markup": kb},
+                    )
+                    sent += 1
+                except Exception:
+                    errors += 1
+        return f"<html><body><p>Broadcast done. Sent: {sent}; Errors: {errors}.</p></body></html>"
+
+    @app.get("/live/survey/{survey_key}", response_class=HTMLResponse)
+    def live_view(survey_key: str) -> str:  # type: ignore[no-untyped-def]
+        try:
+            spec = load_survey(survey_key)
+        except Exception:
+            return "<html><body><p>Survey not found.</p></body></html>"
+        image = spec.image_url or ""
+        title = spec.title
+        return f"""
+        <html>
+          <head>
+            <meta charset='utf-8' />
+            <title>{title}</title>
+            <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script>
+            <style>
+              body {{ margin: 0; background: #000; color: #fff; font-family: system-ui, sans-serif; }}
+              .wrap {{ display:flex; align-items:center; gap:24px; padding: 24px; }}
+              img {{ max-height: 400px; border-radius: 8px; }}
+              h1 {{ font-size: 24px; margin: 0 0 12px; }}
+              .left {{ flex: 0 0 auto; }}
+              .right {{ flex: 1 1 auto; }}
+            </style>
+          </head>
+          <body>
+            <div class='wrap'>
+              <div class='left'>{('<img src=\"' + image + '\" />') if image else ''}</div>
+              <div class='right'>
+                <h1>{title}</h1>
+                <canvas id='chart'></canvas>
+              </div>
+            </div>
+            <script>
+              const ctx = document.getElementById('chart').getContext('2d');
+              let chart;
+              async function fetchData() {{
+                const r = await fetch('/live/api/survey/{survey_key}');
+                if (!r.ok) return;
+                const data = await r.json();
+                const cfg = {{
+                  type: 'bar',
+                  data: {{
+                    labels: data.labels,
+                    datasets: [{{ label: 'Votes', data: data.counts, backgroundColor: '#3b82f6' }}]
+                  }},
+                  options: {{
+                    responsive: true,
+                    plugins: {{ legend: {{ display: false }} }},
+                    scales: {{
+                      x: {{ ticks: {{ color: '#ddd' }}, grid: {{ color: 'rgba(255,255,255,0.1)' }} }},
+                      y: {{ beginAtZero:true, ticks: {{ color: '#ddd', precision:0 }}, grid: {{ color: 'rgba(255,255,255,0.1)' }} }}
+                    }}
+                  }}
+                }};
+                if (!chart) {{ chart = new Chart(ctx, cfg); }}
+                else {{ chart.data.labels = data.labels; chart.data.datasets[0].data = data.counts; chart.update(); }}
+              }}
+              fetchData();
+              setInterval(fetchData, 2000);
+            </script>
+          </body>
+        </html>
+        """
+
+    @app.get("/live/api/survey/{survey_key}", response_class=JSONResponse)
+    def live_api(survey_key: str):  # type: ignore[no-untyped-def]
+        try:
+            spec = load_survey(survey_key)
+        except Exception:
+            return JSONResponse({"labels": [], "counts": []})
+        # default: first choice question
+        q = next((qq for qq in spec.questions if qq.type == "choice"), None)
+        with get_session() as session:
+            state = (
+                session.query(LivePollState)
+                .filter(LivePollState.survey_key == survey_key)
+                .order_by(LivePollState.created_at.desc())
+                .first()
+            )
+        if state and state.question_id:
+            q = next((qq for qq in spec.questions if qq.id == state.question_id and qq.type == "choice"), q)
+        if not q or not q.choices:
+            return JSONResponse({"labels": [], "counts": []})
+        with get_session() as session:
+            votes = session.query(LivePollVote).filter(
+                (LivePollVote.survey_key == survey_key) & (LivePollVote.question_id == q.id)
+            ).all()
+        from collections import Counter
+        counts = Counter([v.value for v in votes])
+        labels = [c.label for c in (q.choices or [])]
+        series = [counts.get(c.value, 0) for c in (q.choices or [])]
+        return JSONResponse({"labels": labels, "counts": series, "title": spec.title, "prompt": q.prompt, "image_url": spec.image_url})
 
     @app.get("/admin/vtuber", response_class=HTMLResponse)
     def vtuber_form(_: Auth) -> str:  # type: ignore[no-untyped-def]

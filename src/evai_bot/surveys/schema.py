@@ -25,5 +25,5 @@ class SurveySpec(BaseModel):
     key: str
     title: str
     description: Optional[str] = None
+    image_url: Optional[str] = None
     questions: List[QuestionSpec] = Field(default_factory=list)
-
