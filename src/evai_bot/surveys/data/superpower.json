@@ -2,7 +2,7 @@
   "key": "superpower",
   "title": "Выберите сверхспособность",
   "description": "Забавный опрос о странных суперсилах",
-  "image_url": "",
+  "image_url": "https://eva.saa.sh/bot-assets/superpower.jpg",
   "questions": [
     {
       "id": "choice_1",

@@ -2,7 +2,7 @@
   "key": "blue_red",
   "title": "Дилемма: синяя или красная кнопка",
   "description": "Голосование: выбрать синюю или красную кнопку.",
-  "image_url": "",
+  "image_url": "https://eva.saa.sh/bot-assets/blue-red.jpg",
   "questions": [
     {
       "id": "choice_1",
