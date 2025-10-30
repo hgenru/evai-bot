@@ -790,10 +790,8 @@ def create_app() -> FastAPI:
             <style>
               html, body {{ height: 100%; }}
               body {{ margin: 0; background: #000; color: #fff; font-family: system-ui, sans-serif; }}
-              .wrap {{ display:flex; align-items: stretch; gap:24px; padding: 24px; height: 100vh; width: 100vw; box-sizing: border-box; }}
-              img {{ max-height: 100%; max-width: 35vw; border-radius: 8px; display: block; object-fit: contain; }}
+              .wrap {{ display:flex; align-items: stretch; padding: 24px; height: 100vh; width: 100vw; box-sizing: border-box; }}
               h1 {{ font-size: 48px; margin: 0 0 12px; text-align: center; }}
-              .left {{ flex: 0 0 auto; }}
               .right {{ flex: 1 1 auto; min-width: 0; min-height: 0; display:flex; flex-direction:column; }}
               #chartWrap {{ position: relative; width: 100%; flex: 1 1 auto; min-height: 0; }}
               #chart {{ width: 100%; height: 100%; }}
@@ -801,7 +799,6 @@ def create_app() -> FastAPI:
           </head>
           <body>
             <div class='wrap'>
-              <div class='left'><img id='pic' style='display:none' /></div>
               <div class='right'>
                 <h1>{title}</h1>
                 <div id='chartWrap'>
@@ -842,9 +839,6 @@ def create_app() -> FastAPI:
                 const r = await fetch('/live/api/survey/{survey_key}');
                 if (!r.ok) return;
                 const data = await r.json();
-                // update image if provided
-                const img = document.getElementById('pic');
-                if (data.image_url) {{ img.src = data.image_url; img.style.display = 'block'; }} else {{ img.style.display = 'none'; }}
                 // labels without counts — counts are drawn inside bars
                 const many = (data.labels || []).length > 6;
                 const cfg = {{
