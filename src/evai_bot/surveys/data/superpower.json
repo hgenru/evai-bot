@@ -1,0 +1,19 @@
+{
+  "key": "superpower",
+  "title": "Выберите сверхспособность",
+  "description": "Забавный опрос о странных суперсилах",
+  "image_url": "",
+  "questions": [
+    {
+      "id": "choice_1",
+      "type": "choice",
+      "prompt": "Выберите себе сверхспособность:",
+      "choices": [
+        { "label": "Увеличивать запахи в 100 раз по щелчку пальцев", "value": "smell_boost", "color": "#f59e0b" },
+        { "label": "Становиться светящимся во время сна", "value": "glow_sleep", "color": "#22c55e" },
+        { "label": "Выдувать из ушей серу в виде пузырей", "value": "earwax_bubbles", "color": "#3b82f6" },
+        { "label": "Толстеть, если не жрешь", "value": "fat_if_not_eating", "color": "#ef4444" }
+      ]
+    }
+  ]
+}
