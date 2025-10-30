@@ -113,15 +113,17 @@ async def present_current_question(message_or_cb: Message | CallbackQuery, run: 
         kb = InlineKeyboardMarkup(inline_keyboard=rows)
         text = q.prompt
         if isinstance(message_or_cb, CallbackQuery):
-            await message_or_cb.message.edit_text(text, reply_markup=kb)
+            # Показываем следующий вопрос новым сообщением, не затирая предыдущий
+            await message_or_cb.message.answer(text, reply_markup=kb)
             await message_or_cb.answer()
         else:
             await message_or_cb.answer(text, reply_markup=kb)
     else:
-        # text question: prompt and expect next message
-        text = q.prompt + "\n(введите текст и отправьте)"
+        # text question: prompt (без дополнительной подписи)
+        text = q.prompt
         if isinstance(message_or_cb, CallbackQuery):
-            await message_or_cb.message.edit_text(text)
+            # Отправляем новый месседж, чтобы история вопросов сохранялась
+            await message_or_cb.message.answer(text)
             await message_or_cb.answer()
         else:
             await message_or_cb.answer(text)
