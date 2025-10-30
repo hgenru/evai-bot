@@ -635,6 +635,7 @@ def create_app() -> FastAPI:
                 const img = document.getElementById('pic');
                 if (data.image_url) {{ img.src = data.image_url; img.style.display = 'block'; }} else {{ img.style.display = 'none'; }}
                 // labels without counts — counts are drawn inside bars
+                const many = (data.labels || []).length > 6;
                 const cfg = {{
                   type: 'bar',
                   data: {{
