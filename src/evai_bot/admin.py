@@ -777,8 +777,8 @@ def create_app() -> FastAPI:
             <style>
               html, body {{ height: 100%; }}
               body {{ margin: 0; background: #000; color: #fff; font-family: system-ui, sans-serif; }}
-              .wrap {{ display:flex; align-items:center; gap:24px; padding: 24px; height: 100vh; box-sizing: border-box; }}
-              img {{ max-height: 100%; border-radius: 8px; }}
+              .wrap {{ display:flex; align-items: stretch; gap:24px; padding: 24px; height: 100vh; width: 100vw; box-sizing: border-box; }}
+              img {{ max-height: 100%; max-width: 35vw; border-radius: 8px; display: block; object-fit: contain; }}
               h1 {{ font-size: 48px; margin: 0 0 12px; text-align: center; }}
               .left {{ flex: 0 0 auto; }}
               .right {{ flex: 1 1 auto; min-width: 0; min-height: 0; display:flex; flex-direction:column; }}
@@ -843,11 +843,12 @@ def create_app() -> FastAPI:
                   options: {{
                     responsive: true,
                     maintainAspectRatio: false,
+                    indexAxis: many ? 'y' : 'x',
                     layout: {{ padding: {{ left: 24, right: 24, top: 16, bottom: 16 }} }},
                     plugins: {{ legend: {{ display: false }} }},
                     scales: {{
-                      x: {{ ticks: {{ color: '#fff', font: {{ size: 30 }} }}, grid: {{ color: 'rgba(255,255,255,0.08)' }} }},
-                      y: {{ display: false }}
+                      x: {{ ticks: {{ color: '#fff', font: {{ size: many ? 22 : 30 }} }}, grid: {{ color: 'rgba(255,255,255,0.08)' }} }},
+                      y: {{ display: many ? true : false, ticks: {{ color: '#fff', font: {{ size: many ? 22 : 12 }} }}, grid: {{ color: 'rgba(255,255,255,0.08)' }} }}
                     }}
                   }}
                 }};
