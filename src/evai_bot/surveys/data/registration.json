@@ -1,28 +1,41 @@
 {
   "key": "registration",
   "title": "Регистрация участника",
-  "description": "Базовые вопросы перед началом вечеринки",
+  "description": "Вопросы для входной анкеты",
   "questions": [
     {
       "id": "name",
       "type": "text",
-      "prompt": "Как тебя зовут? (имя на бейдж)"
+      "prompt": "Напишите ваше имя как на бейдже"
     },
     {
-      "id": "role",
+      "id": "profession",
       "type": "choice",
-      "prompt": "Чем занимаешься?",
+      "prompt": "Укажите вашу профессию в нашей компании",
       "choices": [
-        { "label": "Инженер / Dev / ML", "value": "engineer" },
-        { "label": "Дизайн / Продюсирование", "value": "design" },
-        { "label": "Маркетинг / Продажи", "value": "marketing" },
-        { "label": "Другое", "value": "other" }
+        { "label": "Разработчик машинного обучения", "value": "ml_engineer" },
+        { "label": "Инженер по данным", "value": "data_engineer" },
+        { "label": "Специалист по этике ИИ", "value": "ai_ethics" },
+        { "label": "Тестировщик ИИ-систем", "value": "ai_tester" },
+        { "label": "Продуктовый менеджер", "value": "product_manager" },
+        { "label": "UX/UI-дизайнер", "value": "ux_ui_designer" },
+        { "label": "DevOps-инженер", "value": "devops_engineer" }
       ]
     },
     {
-      "id": "fun_fact",
+      "id": "favorite_dish",
       "type": "text",
-      "prompt": "Расскажи забавный факт о себе (для шуток ИИ)"
+      "prompt": "Какое ваше любимое блюдо?"
+    },
+    {
+      "id": "totem_animal",
+      "type": "text",
+      "prompt": "Напишите название вашего тотемного животного"
+    },
+    {
+      "id": "expectations",
+      "type": "text",
+      "prompt": "Опишите в паре предложений, каковы ваши ожидания от вечеринки"
     }
   ]
 }
