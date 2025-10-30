@@ -403,6 +403,9 @@ def create_app() -> FastAPI:
         entries: list[tuple[str, object]] = []
         for p in sorted(Path(SURVEYS_DIR).glob("*.json"), key=lambda x: x.stem):
             key = p.stem
+            if key == "registration":
+                # Регистрационный опрос управляется отдельно и имеет свою страницу
+                continue
             try:
                 spec = load_survey(key)
                 if any(q.type == "choice" for q in spec.questions):
@@ -444,10 +447,18 @@ def create_app() -> FastAPI:
                     f"<a href='/live/survey/{key}' target='_blank'>Viewer</a>"
                     f"</div>"
                 )
+            # Survey-level status line
+            if active and active.survey_key == key:
+                status_html = (
+                    f"<p class='muted' style='margin:4px 0 8px;'>Статус: <b style='color:#22c55e'>активен</b> (вопрос <code>{active.question_id}</code>)</p>"
+                )
+            else:
+                status_html = "<p class='muted' style='margin:4px 0 8px;'>Статус: не активен</p>"
             qa_blocks.append(
                 (
                     f"<section style='margin:12px 0 18px;'>"
                     f"  <h3 style='margin:0 0 6px;'>{spec.title} <small style='color:#666'>({key})</small></h3>"
+                    + status_html
                     + ("".join(rows) if rows else "<p style='color:#666'>Нет вопросов с вариантами</p>")
                     + f"</section>"
                 )
