@@ -1,0 +1,16 @@
+{
+  "key": "dance_winner",
+  "title": "Кто победил на танцевальном конкурсе?",
+  "questions": [
+    {
+      "id": "choice_1",
+      "type": "choice",
+      "prompt": "Кто победил на танцевальном конкурсе?",
+      "choices": [
+        { "label": "1", "value": "1" },
+        { "label": "2", "value": "2" },
+        { "label": "3", "value": "3" }
+      ]
+    }
+  ]
+}
