@@ -513,50 +513,14 @@ def create_app() -> FastAPI:
         </html>
         """
 
-    @app.post("/admin/polls/start")
-    def polls_start(request: Request, _: Auth):  # type: ignore[no-untyped-def]
-        import anyio
-        async def _parse() -> dict[str, str]:
-            data = await request.form()
-            return {k: str(v) for k, v in data.items()}
-        data = anyio.from_thread.run(_parse)
-        survey_key = (data.get("survey_key") or "").strip()
-        question_id = (data.get("question_id") or "").strip()
-        if not survey_key or not question_id:
-            raise HTTPException(status_code=400, detail="survey_key and question_id required")
-        with get_session() as session:
-            state = LivePollState(survey_key=survey_key, question_id=question_id, image_url=None)
-            session.add(state)
-            session.commit()
-        return RedirectResponse(url="/admin/polls", status_code=303)
-
-    @app.post("/admin/polls/stop")
-    def polls_stop(_: Auth):  # type: ignore[no-untyped-def]
-        with get_session() as session:
-            for st in session.query(LivePollState).all():
-                session.delete(st)
-            session.commit()
-        return RedirectResponse(url="/admin/polls", status_code=303)
-
-    @app.post("/admin/polls/broadcast", response_class=HTMLResponse)
-    def polls_broadcast(request: Request, _: Auth) -> str:  # type: ignore[no-untyped-def]
-        import anyio
+    def _broadcast_poll(survey_key: str, question_id: str) -> tuple[int, int]:
+        from .surveys.engine import load_survey
         import httpx
-        async def _parse() -> dict[str, str]:
-            data = await request.form()
-            return {k: str(v) for k, v in data.items()}
-        data = anyio.from_thread.run(_parse)
-        survey_key = (data.get("survey_key") or "").strip()
-        question_id = (data.get("question_id") or "").strip()
-        if not survey_key or not question_id:
-            return "<html><body><p style='color:#b00;'>survey_key and question_id required</p></body></html>"
-        try:
-            spec = load_survey(survey_key)
-        except Exception as e:  # noqa: BLE001
-            return f"<html><body><p style='color:#b00;'>Spec error: {e!s}</p></body></html>"
+        # validate
+        spec = load_survey(survey_key)
         q = next((qq for qq in spec.questions if qq.id == question_id and qq.type == "choice"), None)
         if not q or not q.choices:
-            return "<html><body><p style='color:#b00;'>Question not found or not a choice question</p></body></html>"
+            return (0, 0)
         settings = Settings()
         api_base = f"https://api.telegram.org/bot{settings.bot_token}"
         text = f"{spec.title}\n\n{q.prompt}"
@@ -582,7 +546,47 @@ def create_app() -> FastAPI:
                     sent += 1
                 except Exception:
                     errors += 1
-        return f"<html><body><p>Broadcast done. Sent: {sent}; Errors: {errors}.</p></body></html>"
+        return (sent, errors)
+
+    @app.post("/admin/polls/start")
+    def polls_start(request: Request, _: Auth):  # type: ignore[no-untyped-def]
+        import anyio
+        async def _parse() -> dict[str, str]:
+            data = await request.form()
+            return {k: str(v) for k, v in data.items()}
+        data = anyio.from_thread.run(_parse)
+        survey_key = (data.get("survey_key") or "").strip()
+        question_id = (data.get("question_id") or "").strip()
+        if not survey_key or not question_id:
+            raise HTTPException(status_code=400, detail="survey_key and question_id required")
+        with get_session() as session:
+            state = LivePollState(survey_key=survey_key, question_id=question_id, image_url=None)
+            session.add(state)
+            session.commit()
+        # Auto-broadcast upon start
+        _broadcast_poll(survey_key, question_id)
+        return RedirectResponse(url="/admin/polls", status_code=303)
+
+    @app.post("/admin/polls/stop")
+    def polls_stop(_: Auth):  # type: ignore[no-untyped-def]
+        with get_session() as session:
+            for st in session.query(LivePollState).all():
+                session.delete(st)
+            session.commit()
+        return RedirectResponse(url="/admin/polls", status_code=303)
+
+    @app.post("/admin/polls/broadcast")
+    def polls_broadcast(request: Request, _: Auth):  # type: ignore[no-untyped-def]
+        import anyio
+        async def _parse() -> dict[str, str]:
+            data = await request.form()
+            return {k: str(v) for k, v in data.items()}
+        data = anyio.from_thread.run(_parse)
+        survey_key = (data.get("survey_key") or "").strip()
+        question_id = (data.get("question_id") or "").strip()
+        if survey_key and question_id:
+            _broadcast_poll(survey_key, question_id)
+        return RedirectResponse(url="/admin/polls", status_code=303)
 
     @app.get("/live/survey/{survey_key}", response_class=HTMLResponse)
     def live_view(survey_key: str) -> str:  # type: ignore[no-untyped-def]
@@ -601,7 +605,7 @@ def create_app() -> FastAPI:
               body {{ margin: 0; background: #000; color: #fff; font-family: system-ui, sans-serif; }}
               .wrap {{ display:flex; align-items:center; gap:24px; padding: 24px; }}
               img {{ max-height: 400px; border-radius: 8px; }}
-              h1 {{ font-size: 24px; margin: 0 0 12px; }}
+              h1 {{ font-size: 48px; margin: 0 0 12px; }}
               .left {{ flex: 0 0 auto; }}
               .right {{ flex: 1 1 auto; }}
             </style>
@@ -634,12 +638,30 @@ def create_app() -> FastAPI:
                     responsive: true,
                     plugins: {{ legend: {{ display: false }} }},
                     scales: {{
-                      x: {{ ticks: {{ color: '#ddd' }}, grid: {{ color: 'rgba(255,255,255,0.1)' }} }},
-                      y: {{ beginAtZero:true, ticks: {{ color: '#ddd', precision:0 }}, grid: {{ color: 'rgba(255,255,255,0.1)' }} }}
+                      x: {{ ticks: {{ color: '#fff', font: {{ size: 22 }} }}, grid: {{ color: 'rgba(255,255,255,0.1)' }} }},
+                      y: {{ beginAtZero:true, ticks: {{ color: '#fff', precision:0, font: {{ size: 18 }} }}, grid: {{ color: 'rgba(255,255,255,0.1)' }} }}
                     }}
                   }}
                 }};
-                if (!chart) {{ chart = new Chart(ctx, cfg); }}
+                // draw values on top of bars (lightweight plugin)
+                const valuePlugin = {{
+                  id: 'valuePlugin',
+                  afterDatasetsDraw(chart, args, pluginOptions) {{
+                    const {{ctx}} = chart;
+                    ctx.save();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 22px system-ui';
+                    const meta = chart.getDatasetMeta(0);
+                    meta.data.forEach((bar, i) => {{
+                      const val = chart.data.datasets[0].data[i];
+                      if (val == null) return;
+                      ctx.textAlign = 'center';
+                      ctx.fillText(String(val), bar.x, bar.y - 6);
+                    }});
+                    ctx.restore();
+                  }}
+                }};
+                if (!chart) {{ chart = new Chart(ctx, cfg); chart.config.plugins.push(valuePlugin); }}
                 else {{ chart.data.labels = data.labels; chart.data.datasets[0].data = data.counts; chart.update(); }}
               }}
               fetchData();
